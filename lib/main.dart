@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:a_one_bakeries_app/theme/app_theme.dart';
+import 'package:a_one_bakeries_app/screens/main_navigation.dart';
 
 /// Main Entry Point of A-One Bakeries App
 /// 
 /// This is where the app starts. We initialize the app with our custom theme
-/// and set up the home screen (which will be the Dashboard in Phase 2).
+/// and set up the main navigation controller which manages the bottom nav bar.
 
 void main() {
   runApp(const AOneBakeriesApp());
@@ -23,9 +24,8 @@ class AOneBakeriesApp extends StatelessWidget {
       // Apply our custom theme
       theme: AppTheme.lightTheme,
       
-      // Home screen - for now it's a placeholder
-      // In Phase 2, we'll replace this with the Dashboard
-      home: const PlaceholderHome(),
+      // Home screen - Main Navigation with Dashboard
+      home: const MainNavigation(),
     );
   }
 }
