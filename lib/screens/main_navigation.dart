@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:a_one_bakeries_app/screens/dashboard_screen.dart';
+import 'package:a_one_bakeries_app/screens/stock_screen.dart';
 import 'package:a_one_bakeries_app/theme/app_theme.dart';
 
 /// Main Navigation Controller
@@ -21,13 +22,12 @@ class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
 
   // List of screens corresponding to each navigation item
-  // For now, only Dashboard is implemented. Others are placeholders.
   final List<Widget> _screens = [
-    const DashboardScreen(),           // Index 0
-    const PlaceholderScreen(title: 'Stock'),           // Index 1
-    const PlaceholderScreen(title: 'Employees'),       // Index 2
-    const PlaceholderScreen(title: 'Orders'),          // Index 3
-    const PlaceholderScreen(title: 'Income & Expenses'), // Index 4
+    const DashboardScreen(),                              // Index 0
+    const StockScreen(),                                  // Index 1
+    const PlaceholderScreen(title: 'Employees'),          // Index 2
+    const PlaceholderScreen(title: 'Orders'),             // Index 3
+    const PlaceholderScreen(title: 'Income & Expenses'),  // Index 4
   ];
 
   /// Handle navigation tap
