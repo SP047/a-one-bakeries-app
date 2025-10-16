@@ -24,6 +24,35 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   // Date formatter for displaying current date
   final DateFormat _dateFormat = DateFormat('EEEE, MMMM d, yyyy');
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+  
+  // Dashboard data
+  int _stockItemsCount = 0;
+  int _employeesCount = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  /// Load dashboard data from database
+  Future<void> _loadDashboardData() async {
+    try {
+      final stockItems = await _dbHelper.getAllStockItems();
+      final employees = await _dbHelper.getAllEmployees();
+      setState(() {
+        _stockItemsCount = stockItems.length;
+        _employeesCount = employees.length;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -184,12 +213,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // Stock Summary Card
         SummaryCard(
           title: 'Stock on Hand',
-          value: '0',
+          value: _isLoading ? '...' : '$_stockItemsCount',
           subtitle: 'Total items in stock',
           icon: Icons.inventory_2,
           color: AppTheme.primaryBrown,
           onTap: () {
             // TODO: Navigate to stock screen (Phase 3)
+          },
+        ),
+        
+        // Employees Summary Card
+        SummaryCard(
+          title: 'Total Employees',
+          value: _isLoading ? '...' : '$_employeesCount',
+          subtitle: 'Registered staff members',
+          icon: Icons.people,
+          color: Colors.blue,
+          onTap: () {
+            // TODO: Navigate to employees screen (Phase 4)
           },
         ),
         
@@ -334,14 +375,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// Refresh Data Function
   /// 
   /// This will be called when user pulls down to refresh.
-  /// In later phases, we'll fetch fresh data from the database here.
+  /// Fetches fresh data from the database.
   Future<void> _refreshData() async {
-    // Simulate loading delay
-    await Future.delayed(const Duration(seconds: 1));
-    
-    setState(() {
-      // TODO: Refresh all dashboard data from database
-    });
+    await _loadDashboardData();
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

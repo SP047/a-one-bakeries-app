@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
 import 'package:a_one_bakeries_app/models/stock_model.dart';
+import 'package:a_one_bakeries_app/models/employee_model.dart';
 
 /// Database Helper
 /// 
@@ -36,15 +37,71 @@ class DatabaseHelper {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
     }
+    
     // Get the database path
     String path = join(await getDatabasesPath(), 'a_one_bakeries.db');
     
     // Open/create the database
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // CHANGED FROM 1 TO 2
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  /// Upgrade database when version changes
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add employee tables for version 2
+      await db.execute('''
+        CREATE TABLE employees(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          firstName TEXT NOT NULL,
+          lastName TEXT NOT NULL,
+          idNumber TEXT NOT NULL UNIQUE,
+          idType TEXT NOT NULL,
+          birthDate TEXT NOT NULL,
+          role TEXT NOT NULL,
+          photoPath TEXT,
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE credit_transactions(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          employeeId INTEGER NOT NULL,
+          employeeName TEXT NOT NULL,
+          transactionType TEXT NOT NULL,
+          amount REAL NOT NULL,
+          reason TEXT NOT NULL,
+          createdAt TEXT NOT NULL,
+          FOREIGN KEY (employeeId) REFERENCES employees(id) ON DELETE CASCADE
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE employee_documents(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          employeeId INTEGER NOT NULL,
+          documentType TEXT NOT NULL,
+          fileName TEXT NOT NULL,
+          filePath TEXT NOT NULL,
+          uploadedAt TEXT NOT NULL,
+          FOREIGN KEY (employeeId) REFERENCES employees(id) ON DELETE CASCADE
+        )
+      ''');
+
+      await db.execute('''
+        CREATE INDEX idx_credit_transactions_employeeId ON credit_transactions(employeeId)
+      ''');
+
+      await db.execute('''
+        CREATE INDEX idx_employee_documents_employeeId ON employee_documents(employeeId)
+      ''');
+    }
   }
 
   /// Create database tables
@@ -84,6 +141,58 @@ class DatabaseHelper {
     // Create index on createdAt for faster date queries
     await db.execute('''
       CREATE INDEX idx_stock_movements_createdAt ON stock_movements(createdAt)
+    ''');
+
+    // Employees Table
+    await db.execute('''
+      CREATE TABLE employees(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firstName TEXT NOT NULL,
+        lastName TEXT NOT NULL,
+        idNumber TEXT NOT NULL UNIQUE,
+        idType TEXT NOT NULL,
+        birthDate TEXT NOT NULL,
+        role TEXT NOT NULL,
+        photoPath TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      )
+    ''');
+
+    // Credit Transactions Table
+    await db.execute('''
+      CREATE TABLE credit_transactions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        employeeId INTEGER NOT NULL,
+        employeeName TEXT NOT NULL,
+        transactionType TEXT NOT NULL,
+        amount REAL NOT NULL,
+        reason TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        FOREIGN KEY (employeeId) REFERENCES employees(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // Employee Documents Table
+    await db.execute('''
+      CREATE TABLE employee_documents(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        employeeId INTEGER NOT NULL,
+        documentType TEXT NOT NULL,
+        fileName TEXT NOT NULL,
+        filePath TEXT NOT NULL,
+        uploadedAt TEXT NOT NULL,
+        FOREIGN KEY (employeeId) REFERENCES employees(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // Create indexes for employee-related tables
+    await db.execute('''
+      CREATE INDEX idx_credit_transactions_employeeId ON credit_transactions(employeeId)
+    ''');
+
+    await db.execute('''
+      CREATE INDEX idx_employee_documents_employeeId ON employee_documents(employeeId)
     ''');
   }
 
@@ -240,6 +349,163 @@ class DatabaseHelper {
     return List.generate(maps.length, (i) => StockMovement.fromMap(maps[i]));
   }
 
+  // ==================== EMPLOYEE OPERATIONS ====================
+
+  /// Insert a new employee
+  Future<int> insertEmployee(Employee employee) async {
+    final db = await database;
+    return await db.insert('employees', employee.toMap());
+  }
+
+  /// Update an existing employee
+  Future<int> updateEmployee(Employee employee) async {
+    final db = await database;
+    return await db.update(
+      'employees',
+      employee.toMap(),
+      where: 'id = ?',
+      whereArgs: [employee.id],
+    );
+  }
+
+  /// Delete an employee
+  Future<int> deleteEmployee(int id) async {
+    final db = await database;
+    return await db.delete(
+      'employees',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Get all employees
+  Future<List<Employee>> getAllEmployees() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'employees',
+      orderBy: 'firstName ASC, lastName ASC',
+    );
+    return List.generate(maps.length, (i) => Employee.fromMap(maps[i]));
+  }
+
+  /// Get a single employee by ID
+  Future<Employee?> getEmployeeById(int id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'employees',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isEmpty) return null;
+    return Employee.fromMap(maps.first);
+  }
+
+  /// Search employees by name
+  Future<List<Employee>> searchEmployees(String query) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'employees',
+      where: 'firstName LIKE ? OR lastName LIKE ?',
+      whereArgs: ['%$query%', '%$query%'],
+      orderBy: 'firstName ASC, lastName ASC',
+    );
+    return List.generate(maps.length, (i) => Employee.fromMap(maps[i]));
+  }
+
+  /// Get employees by role
+  Future<List<Employee>> getEmployeesByRole(String role) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'employees',
+      where: 'role = ?',
+      whereArgs: [role],
+      orderBy: 'firstName ASC, lastName ASC',
+    );
+    return List.generate(maps.length, (i) => Employee.fromMap(maps[i]));
+  }
+
+  // ==================== CREDIT TRANSACTION OPERATIONS ====================
+
+  /// Insert a new credit transaction
+  Future<int> insertCreditTransaction(CreditTransaction transaction) async {
+    final db = await database;
+    return await db.insert('credit_transactions', transaction.toMap());
+  }
+
+  /// Get all credit transactions for an employee
+  Future<List<CreditTransaction>> getCreditTransactionsByEmployeeId(
+      int employeeId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'credit_transactions',
+      where: 'employeeId = ?',
+      whereArgs: [employeeId],
+      orderBy: 'createdAt DESC',
+    );
+    return List.generate(
+        maps.length, (i) => CreditTransaction.fromMap(maps[i]));
+  }
+
+  /// Calculate total credit balance for an employee
+  Future<double> getEmployeeCreditBalance(int employeeId) async {
+    final transactions = await getCreditTransactionsByEmployeeId(employeeId);
+    double balance = 0;
+    for (var transaction in transactions) {
+      if (transaction.transactionType == 'BORROW') {
+        balance += transaction.amount;
+      } else {
+        // REPAY
+        balance -= transaction.amount;
+      }
+    }
+    return balance;
+  }
+
+  // ==================== EMPLOYEE DOCUMENT OPERATIONS ====================
+
+  /// Insert a new employee document
+  Future<int> insertEmployeeDocument(EmployeeDocument document) async {
+    final db = await database;
+    return await db.insert('employee_documents', document.toMap());
+  }
+
+  /// Delete an employee document
+  Future<int> deleteEmployeeDocument(int id) async {
+    final db = await database;
+    return await db.delete(
+      'employee_documents',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Get all documents for an employee
+  Future<List<EmployeeDocument>> getEmployeeDocuments(int employeeId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'employee_documents',
+      where: 'employeeId = ?',
+      whereArgs: [employeeId],
+      orderBy: 'uploadedAt DESC',
+    );
+    return List.generate(maps.length, (i) => EmployeeDocument.fromMap(maps[i]));
+  }
+
+  /// Get documents by type for an employee
+  Future<List<EmployeeDocument>> getEmployeeDocumentsByType(
+    int employeeId,
+    String documentType,
+  ) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'employee_documents',
+      where: 'employeeId = ? AND documentType = ?',
+      whereArgs: [employeeId, documentType],
+      orderBy: 'uploadedAt DESC',
+    );
+    return List.generate(maps.length, (i) => EmployeeDocument.fromMap(maps[i]));
+  }
+
   // ==================== UTILITY OPERATIONS ====================
 
   /// Close database connection
@@ -253,5 +519,8 @@ class DatabaseHelper {
     final db = await database;
     await db.delete('stock_movements');
     await db.delete('stock_items');
+    await db.delete('credit_transactions');
+    await db.delete('employee_documents');
+    await db.delete('employees');
   }
 }
