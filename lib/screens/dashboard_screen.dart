@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:a_one_bakeries_app/theme/app_theme.dart';
 import 'package:a_one_bakeries_app/widgets/summary_card.dart';
 import 'package:a_one_bakeries_app/database/database_helper.dart';
+import 'package:a_one_bakeries_app/screens/vehicle_screen.dart';
 import 'package:intl/intl.dart';
 
 /// Dashboard Screen
@@ -284,20 +285,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(height: 16),
         
-        // Quick action buttons in a grid
+        // Quick action buttons in a 2x3 grid
         GridView.count(
-          crossAxisCount: 2,
+          crossAxisCount: 3,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 1.5,
+          childAspectRatio: 1.0,
           children: [
             _buildQuickActionButton(
               icon: Icons.add_shopping_cart,
               label: 'New Order',
               onTap: () {
-                // TODO: Navigate to new order screen
                 _showComingSoonMessage('New Order');
               },
             ),
@@ -305,7 +305,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.inventory,
               label: 'Add Stock',
               onTap: () {
-                // TODO: Navigate to add stock screen
                 _showComingSoonMessage('Add Stock');
               },
             ),
@@ -313,16 +312,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.person_add,
               label: 'Add Employee',
               onTap: () {
-                // TODO: Navigate to add employee screen
                 _showComingSoonMessage('Add Employee');
+              },
+            ),
+            _buildQuickActionButton(
+              icon: Icons.local_shipping,
+              label: 'Add Vehicle',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const VehicleScreen(),
+                  ),
+                ).then((_) => _loadDashboardData()); // Refresh on return
               },
             ),
             _buildQuickActionButton(
               icon: Icons.attach_money,
               label: 'Record Income',
               onTap: () {
-                // TODO: Navigate to record income screen
                 _showComingSoonMessage('Record Income');
+              },
+            ),
+            _buildQuickActionButton(
+              icon: Icons.money_off,
+              label: 'Record Expense',
+              onTap: () {
+                _showComingSoonMessage('Record Expense');
               },
             ),
           ],

@@ -4,6 +4,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
 import 'package:a_one_bakeries_app/models/stock_model.dart';
 import 'package:a_one_bakeries_app/models/employee_model.dart';
+import 'package:a_one_bakeries_app/models/vehicle_model.dart';
 
 /// Database Helper
 /// 
@@ -44,7 +45,7 @@ class DatabaseHelper {
     // Open/create the database
     return await openDatabase(
       path,
-      version: 2, // CHANGED FROM 1 TO 2
+      version: 3, // CHANGED FROM 2 TO 3
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -100,6 +101,28 @@ class DatabaseHelper {
 
       await db.execute('''
         CREATE INDEX idx_employee_documents_employeeId ON employee_documents(employeeId)
+      ''');
+    }
+    
+    if (oldVersion < 3) {
+      // Add vehicles table for version 3
+      await db.execute('''
+        CREATE TABLE vehicles(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          make TEXT NOT NULL,
+          model TEXT NOT NULL,
+          year INTEGER NOT NULL,
+          registrationNumber TEXT NOT NULL UNIQUE,
+          assignedDriverId INTEGER,
+          assignedDriverName TEXT,
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL,
+          FOREIGN KEY (assignedDriverId) REFERENCES employees(id) ON DELETE SET NULL
+        )
+      ''');
+      
+      await db.execute('''
+        CREATE INDEX idx_vehicles_assignedDriverId ON vehicles(assignedDriverId)
       ''');
     }
   }
@@ -522,5 +545,121 @@ class DatabaseHelper {
     await db.delete('credit_transactions');
     await db.delete('employee_documents');
     await db.delete('employees');
+    await db.delete('vehicles');
+  }
+
+  // ==================== VEHICLE OPERATIONS ====================
+
+  /// Insert a new vehicle
+  Future<int> insertVehicle(Vehicle vehicle) async {
+    final db = await database;
+    return await db.insert('vehicles', vehicle.toMap());
+  }
+
+  /// Update an existing vehicle
+  Future<int> updateVehicle(Vehicle vehicle) async {
+    final db = await database;
+    return await db.update(
+      'vehicles',
+      vehicle.toMap(),
+      where: 'id = ?',
+      whereArgs: [vehicle.id],
+    );
+  }
+
+  /// Delete a vehicle
+  Future<int> deleteVehicle(int id) async {
+    final db = await database;
+    return await db.delete(
+      'vehicles',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Get all vehicles
+  Future<List<Vehicle>> getAllVehicles() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'vehicles',
+      orderBy: 'make ASC, model ASC',
+    );
+    return List.generate(maps.length, (i) => Vehicle.fromMap(maps[i]));
+  }
+
+  /// Get a single vehicle by ID
+  Future<Vehicle?> getVehicleById(int id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'vehicles',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isEmpty) return null;
+    return Vehicle.fromMap(maps.first);
+  }
+
+  /// Get assigned vehicles
+  Future<List<Vehicle>> getAssignedVehicles() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'vehicles',
+      where: 'assignedDriverId IS NOT NULL',
+      orderBy: 'make ASC, model ASC',
+    );
+    return List.generate(maps.length, (i) => Vehicle.fromMap(maps[i]));
+  }
+
+  /// Get unassigned vehicles
+  Future<List<Vehicle>> getUnassignedVehicles() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'vehicles',
+      where: 'assignedDriverId IS NULL',
+      orderBy: 'make ASC, model ASC',
+    );
+    return List.generate(maps.length, (i) => Vehicle.fromMap(maps[i]));
+  }
+
+  /// Get vehicles assigned to a specific driver
+  Future<List<Vehicle>> getVehiclesByDriverId(int driverId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'vehicles',
+      where: 'assignedDriverId = ?',
+      whereArgs: [driverId],
+      orderBy: 'make ASC, model ASC',
+    );
+    return List.generate(maps.length, (i) => Vehicle.fromMap(maps[i]));
+  }
+
+  /// Assign vehicle to driver
+  Future<int> assignVehicleToDriver(int vehicleId, int driverId, String driverName) async {
+    final db = await database;
+    return await db.update(
+      'vehicles',
+      {
+        'assignedDriverId': driverId,
+        'assignedDriverName': driverName,
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [vehicleId],
+    );
+  }
+
+  /// Unassign vehicle from driver
+  Future<int> unassignVehicle(int vehicleId) async {
+    final db = await database;
+    return await db.update(
+      'vehicles',
+      {
+        'assignedDriverId': null,
+        'assignedDriverName': null,
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [vehicleId],
+    );
   }
 }
