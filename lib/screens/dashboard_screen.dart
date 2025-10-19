@@ -30,6 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Dashboard data
   int _stockItemsCount = 0;
   int _employeesCount = 0;
+  int _todayBreadQuantity = 0;
   bool _isLoading = true;
 
   @override
@@ -43,9 +44,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final stockItems = await _dbHelper.getAllStockItems();
       final employees = await _dbHelper.getAllEmployees();
+      final breadQty = await _dbHelper.getTodayBreadQuantity();
       setState(() {
         _stockItemsCount = stockItems.length;
         _employeesCount = employees.length;
+        _todayBreadQuantity = breadQty;
         _isLoading = false;
       });
     } catch (e) {
@@ -237,13 +240,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         
         // Orders Summary Card
         SummaryCard(
-          title: 'Today\'s Orders',
-          value: '0',
-          subtitle: 'Active orders',
+          title: 'Today\'s Bread',
+          value: _isLoading ? '...' : '$_todayBreadQuantity',
+          subtitle: 'Total bread quantity',
           icon: Icons.shopping_cart,
           color: AppTheme.secondaryOrange,
           onTap: () {
-            // TODO: Navigate to orders screen (Phase 6)
+            // Navigate to orders screen
           },
         ),
         

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:a_one_bakeries_app/screens/dashboard_screen.dart';
 import 'package:a_one_bakeries_app/screens/stock_screen.dart';
 import 'package:a_one_bakeries_app/screens/employee_screen.dart';
+import 'package:a_one_bakeries_app/screens/orders_screen.dart';
 import 'package:a_one_bakeries_app/theme/app_theme.dart';
 
 /// Main Navigation Controller
@@ -27,7 +28,7 @@ class _MainNavigationState extends State<MainNavigation> {
     const DashboardScreen(),                              // Index 0 - Dashboard
     const StockScreen(),                                  // Index 1 - Stock
     const EmployeeScreen(),                               // Index 2 - Employees
-    const PlaceholderScreen(title: 'Orders'),             // Index 3 - Orders
+    const OrdersScreen(),                                 // Index 3 - Orders
     const PlaceholderScreen(title: 'Income & Expenses'),  // Index 4 - Finance
   ];
 

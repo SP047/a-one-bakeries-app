@@ -5,6 +5,7 @@ import 'package:path/path.dart';
 import 'package:a_one_bakeries_app/models/stock_model.dart';
 import 'package:a_one_bakeries_app/models/employee_model.dart';
 import 'package:a_one_bakeries_app/models/vehicle_model.dart';
+import 'package:a_one_bakeries_app/models/order_model.dart';
 
 /// Database Helper
 /// 
@@ -45,7 +46,7 @@ class DatabaseHelper {
     // Open/create the database
     return await openDatabase(
       path,
-      version: 3, // CHANGED FROM 2 TO 3
+      version: 5, // CHANGED FROM 4 TO 5
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -123,6 +124,100 @@ class DatabaseHelper {
       
       await db.execute('''
         CREATE INDEX idx_vehicles_assignedDriverId ON vehicles(assignedDriverId)
+      ''');
+    }
+    
+    if (oldVersion < 4) {
+      // Add orders tables for version 4
+      await db.execute('''
+        CREATE TABLE orders(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          driverId INTEGER,
+          driverName TEXT,
+          vehicleId INTEGER,
+          vehicleInfo TEXT,
+          totalAmount REAL NOT NULL,
+          status TEXT NOT NULL DEFAULT 'PENDING',
+          createdAt TEXT NOT NULL,
+          FOREIGN KEY (driverId) REFERENCES employees(id) ON DELETE SET NULL,
+          FOREIGN KEY (vehicleId) REFERENCES vehicles(id) ON DELETE SET NULL
+        )
+      ''');
+      
+      await db.execute('''
+        CREATE TABLE order_items(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          orderId INTEGER NOT NULL,
+          itemType TEXT NOT NULL,
+          trollies INTEGER NOT NULL,
+          quantity INTEGER NOT NULL,
+          total REAL NOT NULL,
+          FOREIGN KEY (orderId) REFERENCES orders(id) ON DELETE CASCADE
+        )
+      ''');
+      
+      await db.execute('''
+        CREATE INDEX idx_orders_driverId ON orders(driverId)
+      ''');
+      
+      await db.execute('''
+        CREATE INDEX idx_orders_vehicleId ON orders(vehicleId)
+      ''');
+      
+      await db.execute('''
+        CREATE INDEX idx_orders_createdAt ON orders(createdAt)
+      ''');
+      
+      await db.execute('''
+        CREATE INDEX idx_order_items_orderId ON order_items(orderId)
+      ''');
+    }
+    
+    if (oldVersion < 5) {
+      // Update orders table structure for version 5
+      // Drop old tables and recreate with new structure
+      await db.execute('DROP TABLE IF EXISTS order_items');
+      await db.execute('DROP TABLE IF EXISTS orders');
+      
+      await db.execute('''
+        CREATE TABLE orders(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          driverId INTEGER,
+          driverName TEXT,
+          vehicleId INTEGER,
+          vehicleInfo TEXT,
+          totalQuantity INTEGER NOT NULL,
+          createdAt TEXT NOT NULL,
+          FOREIGN KEY (driverId) REFERENCES employees(id) ON DELETE SET NULL,
+          FOREIGN KEY (vehicleId) REFERENCES vehicles(id) ON DELETE SET NULL
+        )
+      ''');
+      
+      await db.execute('''
+        CREATE TABLE order_items(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          orderId INTEGER NOT NULL,
+          itemType TEXT NOT NULL,
+          trolliesOrQty INTEGER NOT NULL,
+          quantity INTEGER NOT NULL,
+          FOREIGN KEY (orderId) REFERENCES orders(id) ON DELETE CASCADE
+        )
+      ''');
+      
+      await db.execute('''
+        CREATE INDEX idx_orders_driverId ON orders(driverId)
+      ''');
+      
+      await db.execute('''
+        CREATE INDEX idx_orders_vehicleId ON orders(vehicleId)
+      ''');
+      
+      await db.execute('''
+        CREATE INDEX idx_orders_createdAt ON orders(createdAt)
+      ''');
+      
+      await db.execute('''
+        CREATE INDEX idx_order_items_orderId ON order_items(orderId)
       ''');
     }
   }
@@ -216,6 +311,68 @@ class DatabaseHelper {
 
     await db.execute('''
       CREATE INDEX idx_employee_documents_employeeId ON employee_documents(employeeId)
+    ''');
+
+    // Vehicles Table
+    await db.execute('''
+      CREATE TABLE vehicles(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        make TEXT NOT NULL,
+        model TEXT NOT NULL,
+        year INTEGER NOT NULL,
+        registrationNumber TEXT NOT NULL UNIQUE,
+        assignedDriverId INTEGER,
+        assignedDriverName TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        FOREIGN KEY (assignedDriverId) REFERENCES employees(id) ON DELETE SET NULL
+      )
+    ''');
+    
+    await db.execute('''
+      CREATE INDEX idx_vehicles_assignedDriverId ON vehicles(assignedDriverId)
+    ''');
+
+    // Orders Table
+    await db.execute('''
+      CREATE TABLE orders(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        driverId INTEGER,
+        driverName TEXT,
+        vehicleId INTEGER,
+        vehicleInfo TEXT,
+        totalQuantity INTEGER NOT NULL,
+        createdAt TEXT NOT NULL,
+        FOREIGN KEY (driverId) REFERENCES employees(id) ON DELETE SET NULL,
+        FOREIGN KEY (vehicleId) REFERENCES vehicles(id) ON DELETE SET NULL
+      )
+    ''');
+    
+    await db.execute('''
+      CREATE TABLE order_items(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        orderId INTEGER NOT NULL,
+        itemType TEXT NOT NULL,
+        trolliesOrQty INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
+        FOREIGN KEY (orderId) REFERENCES orders(id) ON DELETE CASCADE
+      )
+    ''');
+    
+    await db.execute('''
+      CREATE INDEX idx_orders_driverId ON orders(driverId)
+    ''');
+    
+    await db.execute('''
+      CREATE INDEX idx_orders_vehicleId ON orders(vehicleId)
+    ''');
+    
+    await db.execute('''
+      CREATE INDEX idx_orders_createdAt ON orders(createdAt)
+    ''');
+    
+    await db.execute('''
+      CREATE INDEX idx_order_items_orderId ON order_items(orderId)
     ''');
   }
 
@@ -540,6 +697,8 @@ class DatabaseHelper {
   /// Delete all data (for testing purposes)
   Future<void> deleteAllData() async {
     final db = await database;
+    await db.delete('order_items');
+    await db.delete('orders');
     await db.delete('stock_movements');
     await db.delete('stock_items');
     await db.delete('credit_transactions');
@@ -661,5 +820,216 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [vehicleId],
     );
+  }
+  
+  // ==================== ORDER OPERATIONS ====================
+
+  /// Insert a new order with its items (transaction)
+  Future<int> insertOrder(Order order, List<OrderItem> items) async {
+    final db = await database;
+    
+    return await db.transaction((txn) async {
+      // Insert order
+      final orderId = await txn.insert('orders', order.toMap());
+      
+      // Insert order items
+      for (var item in items) {
+        await txn.insert('order_items', item.copyWith(orderId: orderId).toMap());
+      }
+      
+      return orderId;
+    });
+  }
+
+  /// Update an order (for editing)
+  Future<int> updateOrder(Order order, List<OrderItem> items) async {
+    final db = await database;
+    
+    return await db.transaction((txn) async {
+      // Update order
+      await txn.update(
+        'orders',
+        order.toMap(),
+        where: 'id = ?',
+        whereArgs: [order.id],
+      );
+      
+      // Delete old items
+      await txn.delete(
+        'order_items',
+        where: 'orderId = ?',
+        whereArgs: [order.id],
+      );
+      
+      // Insert new items
+      for (var item in items) {
+        await txn.insert('order_items', item.toMap());
+      }
+      
+      return order.id!;
+    });
+  }
+
+  /// Delete an order (will cascade delete order items)
+  Future<int> deleteOrder(int id) async {
+    final db = await database;
+    return await db.delete(
+      'orders',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Get all orders
+  Future<List<Order>> getAllOrders() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'orders',
+      orderBy: 'createdAt DESC',
+    );
+    return List.generate(maps.length, (i) => Order.fromMap(maps[i]));
+  }
+
+  /// Get a single order by ID
+  Future<Order?> getOrderById(int id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'orders',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isEmpty) return null;
+    return Order.fromMap(maps.first);
+  }
+
+  /// Get order items for a specific order
+  Future<List<OrderItem>> getOrderItems(int orderId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'order_items',
+      where: 'orderId = ?',
+      whereArgs: [orderId],
+    );
+    return List.generate(maps.length, (i) => OrderItem.fromMap(maps[i]));
+  }
+
+  /// Get orders by driver ID
+  Future<List<Order>> getOrdersByDriverId(int driverId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'orders',
+      where: 'driverId = ?',
+      whereArgs: [driverId],
+      orderBy: 'createdAt DESC',
+    );
+    return List.generate(maps.length, (i) => Order.fromMap(maps[i]));
+  }
+
+  /// Get orders by vehicle ID
+  Future<List<Order>> getOrdersByVehicleId(int vehicleId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'orders',
+      where: 'vehicleId = ?',
+      whereArgs: [vehicleId],
+      orderBy: 'createdAt DESC',
+    );
+    return List.generate(maps.length, (i) => Order.fromMap(maps[i]));
+  }
+
+  /// Get orders by date range
+  Future<List<Order>> getOrdersByDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'orders',
+      where: 'createdAt BETWEEN ? AND ?',
+      whereArgs: [
+        startDate.toIso8601String(),
+        endDate.toIso8601String(),
+      ],
+      orderBy: 'createdAt DESC',
+    );
+    return List.generate(maps.length, (i) => Order.fromMap(maps[i]));
+  }
+
+  /// Get orders by status
+  Future<List<Order>> getOrdersByStatus(String status) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'orders',
+      where: 'status = ?',
+      whereArgs: [status],
+      orderBy: 'createdAt DESC',
+    );
+    return List.generate(maps.length, (i) => Order.fromMap(maps[i]));
+  }
+
+  /// Get today's bread quantities (Brown Bread + White Bread only)
+  Future<int> getTodayBreadQuantity() async {
+    final db = await database;
+    final today = DateTime.now();
+    final startOfDay = DateTime(today.year, today.month, today.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+    
+    // Get all order IDs from today
+    final ordersResult = await db.rawQuery(
+      'SELECT id FROM orders WHERE createdAt BETWEEN ? AND ?',
+      [startOfDay.toIso8601String(), endOfDay.toIso8601String()],
+    );
+    
+    if (ordersResult.isEmpty) return 0;
+    
+    final orderIds = ordersResult.map((row) => row['id'] as int).toList();
+    final placeholders = List.filled(orderIds.length, '?').join(',');
+    
+    // Sum quantities for Brown Bread and White Bread only
+    final result = await db.rawQuery(
+      'SELECT SUM(quantity) as totalQty FROM order_items WHERE orderId IN ($placeholders) AND (itemType = ? OR itemType = ?)',
+      [...orderIds, OrderItemTypes.brownBread, OrderItemTypes.whiteBread],
+    );
+    
+    return result.first['totalQty'] as int? ?? 0;
+  }
+
+  /// Get order performance summary
+  Future<Map<String, dynamic>> getOrderPerformance({
+    int? driverId,
+    int? vehicleId,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final db = await database;
+    
+    String whereClause = '1=1';
+    List<dynamic> whereArgs = [];
+    
+    if (driverId != null) {
+      whereClause += ' AND driverId = ?';
+      whereArgs.add(driverId);
+    }
+    
+    if (vehicleId != null) {
+      whereClause += ' AND vehicleId = ?';
+      whereArgs.add(vehicleId);
+    }
+    
+    if (startDate != null && endDate != null) {
+      whereClause += ' AND createdAt BETWEEN ? AND ?';
+      whereArgs.add(startDate.toIso8601String());
+      whereArgs.add(endDate.toIso8601String());
+    }
+    
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as totalOrders, SUM(totalAmount) as totalAmount FROM orders WHERE $whereClause',
+      whereArgs,
+    );
+    
+    return {
+      'totalOrders': result.first['totalOrders'] as int? ?? 0,
+      'totalAmount': result.first['totalAmount'] as double? ?? 0.0,
+    };
   }
 }
