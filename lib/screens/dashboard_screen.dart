@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:a_one_bakeries_app/theme/app_theme.dart';
 import 'package:a_one_bakeries_app/widgets/summary_card.dart';
+import 'package:a_one_bakeries_app/widgets/add_income_dialog.dart';
+import 'package:a_one_bakeries_app/widgets/add_expense_dialog.dart';
 import 'package:a_one_bakeries_app/database/database_helper.dart';
 import 'package:a_one_bakeries_app/screens/vehicle_screen.dart';
 import 'package:intl/intl.dart';
@@ -31,7 +33,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _stockItemsCount = 0;
   int _employeesCount = 0;
   int _todayBreadQuantity = 0;
+  double _todayIncome = 0.0;
+  double _todayExpenses = 0.0;
   bool _isLoading = true;
+
+  final NumberFormat _currencyFormat = NumberFormat.currency(symbol: 'R ');
 
   @override
   void initState() {
@@ -333,15 +339,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _buildQuickActionButton(
               icon: Icons.attach_money,
               label: 'Record Income',
-              onTap: () {
-                _showComingSoonMessage('Record Income');
+              onTap: () async {
+                final result = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => const AddIncomeDialog(),
+                );
+                if (result == true) {
+                  _loadDashboardData();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Income recorded!'),
+                        backgroundColor: AppTheme.successGreen,
+                      ),
+                    );
+                  }
+                }
               },
             ),
             _buildQuickActionButton(
               icon: Icons.money_off,
               label: 'Record Expense',
-              onTap: () {
-                _showComingSoonMessage('Record Expense');
+              onTap: () async {
+                final result = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => const AddExpenseDialog(),
+                );
+                if (result == true) {
+                  _loadDashboardData();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Expense recorded!'),
+                        backgroundColor: AppTheme.errorRed,
+                      ),
+                    );
+                  }
+                }
               },
             ),
           ],

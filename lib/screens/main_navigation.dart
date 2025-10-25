@@ -3,6 +3,7 @@ import 'package:a_one_bakeries_app/screens/dashboard_screen.dart';
 import 'package:a_one_bakeries_app/screens/stock_screen.dart';
 import 'package:a_one_bakeries_app/screens/employee_screen.dart';
 import 'package:a_one_bakeries_app/screens/orders_screen.dart';
+import 'package:a_one_bakeries_app/screens/finance_screen.dart';
 import 'package:a_one_bakeries_app/theme/app_theme.dart';
 
 /// Main Navigation Controller
@@ -25,11 +26,11 @@ class _MainNavigationState extends State<MainNavigation> {
 
   // List of screens corresponding to each navigation item
   final List<Widget> _screens = [
-    const DashboardScreen(),                              // Index 0 - Dashboard
-    const StockScreen(),                                  // Index 1 - Stock
-    const EmployeeScreen(),                               // Index 2 - Employees
-    const OrdersScreen(),                                 // Index 3 - Orders
-    const PlaceholderScreen(title: 'Income & Expenses'),  // Index 4 - Finance
+    const DashboardScreen(),      // Index 0 - Dashboard
+    const StockScreen(),          // Index 1 - Stock
+    const EmployeeScreen(),       // Index 2 - Employees
+    const OrdersScreen(),         // Index 3 - Orders
+    const FinanceScreen(),        // Index 4 - Finance
   ];
 
   /// Handle navigation tap
@@ -74,53 +75,6 @@ class _MainNavigationState extends State<MainNavigation> {
             label: 'Finance',
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Placeholder Screen Widget
-/// 
-/// This is a temporary screen shown for sections that haven't been built yet.
-/// We'll replace these with actual screens in later phases.
-
-class PlaceholderScreen extends StatelessWidget {
-  final String title;
-  
-  const PlaceholderScreen({
-    super.key,
-    required this.title,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.construction,
-              size: 80,
-              color: AppTheme.primaryBrown.withOpacity(0.5),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              '$title Screen',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Coming soon in next phases',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.darkBrown.withOpacity(0.6),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
