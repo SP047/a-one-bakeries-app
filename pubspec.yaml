@@ -24,7 +24,7 @@ dependencies:
   intl: ^0.18.1
   
   # File Picker for documents
-  file_picker: ^6.1.1
+  file_picker: ^10.3.3
   
   # Image Picker for employee photos
   image_picker: ^1.0.4
