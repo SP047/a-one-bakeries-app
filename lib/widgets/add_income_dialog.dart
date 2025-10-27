@@ -22,7 +22,7 @@ class _AddIncomeDialogState extends State<AddIncomeDialog> {
 
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
-  final TextEditingController _coinsController = TextEditingController();
+  final TextEditingController _coinsController = TextEditingController(text: '0');
 
   bool _isSaving = false;
 
@@ -53,9 +53,11 @@ class _AddIncomeDialogState extends State<AddIncomeDialog> {
 
     try {
       final income = Income(
-        description: _descriptionController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty 
+            ? null 
+            : _descriptionController.text.trim(),
         notes: double.parse(_notesController.text.trim()),
-        coins: double.parse(_coinsController.text.trim()),
+        coins: double.tryParse(_coinsController.text.trim()) ?? 0.0,
       );
 
       await _dbHelper.insertIncome(income);
@@ -125,20 +127,21 @@ class _AddIncomeDialogState extends State<AddIncomeDialog> {
               ),
               const SizedBox(height: 16),
 
-              // Coins Field
+              // Coins Field (Optional)
               TextFormField(
                 controller: _coinsController,
                 decoration: const InputDecoration(
-                  labelText: 'Coins',
+                  labelText: 'Coins (Optional)',
                   hintText: '0.00',
                   prefixText: 'R ',
                   prefixIcon: Icon(Icons.attach_money),
+                  helperText: 'Leave as 0 if no coins',
                 ),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 onChanged: (_) => setState(() {}),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Please enter coins amount';
+                    return null; // Optional field
                   }
                   final amount = double.tryParse(value.trim());
                   if (amount == null || amount < 0) {
@@ -151,9 +154,7 @@ class _AddIncomeDialogState extends State<AddIncomeDialog> {
 
               // Total Preview
               if (_notesController.text.isNotEmpty &&
-                  _coinsController.text.isNotEmpty &&
-                  double.tryParse(_notesController.text) != null &&
-                  double.tryParse(_coinsController.text) != null)
+                  double.tryParse(_notesController.text) != null)
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(

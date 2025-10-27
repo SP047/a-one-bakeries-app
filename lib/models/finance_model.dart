@@ -36,7 +36,7 @@ class Income {
   factory Income.fromMap(Map<String, dynamic> map) {
     return Income(
       id: map['id'] as int?,
-      description: map['description'] as String? ?? '',
+      description: map['description'] as String?,
       notes: map['notes'] as double,
       coins: map['coins'] as double,
       createdAt: DateTime.parse(map['createdAt'] as String),

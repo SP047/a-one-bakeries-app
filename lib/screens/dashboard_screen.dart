@@ -47,17 +47,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Load dashboard data from database
   Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
     try {
-      final stockItems = await _dbHelper.getAllStockItems();
-      final employees = await _dbHelper.getAllEmployees();
-      final breadQty = await _dbHelper.getTodayBreadQuantity();
+      // Load all dashboard data in parallel for better performance
+      final results = await Future.wait([
+        _dbHelper.getAllStockItems(),
+        _dbHelper.getAllEmployees(),
+        _dbHelper.getTodayBreadQuantity(),
+        _dbHelper.getTodayIncome(),
+        _dbHelper.getTodayExpenses(),
+      ]);
+      
       setState(() {
-        _stockItemsCount = stockItems.length;
-        _employeesCount = employees.length;
-        _todayBreadQuantity = breadQty;
+        _stockItemsCount = (results[0] as List).length;
+        _employeesCount = (results[1] as List).length;
+        _todayBreadQuantity = results[2] as int;
+        _todayIncome = results[3] as double;
+        _todayExpenses = results[4] as double;
         _isLoading = false;
       });
     } catch (e) {
+      print('Error loading dashboard data: $e');
       setState(() {
         _isLoading = false;
       });
@@ -259,7 +272,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // Income Summary Card
         SummaryCard(
           title: 'Today\'s Income',
-          value: 'R 0.00',
+          value: _isLoading ? '...' : _currencyFormat.format(_todayIncome),
           subtitle: 'Total income today',
           icon: Icons.trending_up,
           color: AppTheme.successGreen,
@@ -271,7 +284,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // Expenses Summary Card
         SummaryCard(
           title: 'Today\'s Expenses',
-          value: 'R 0.00',
+          value: _isLoading ? '...' : _currencyFormat.format(_todayExpenses),
           subtitle: 'Total expenses today',
           icon: Icons.trending_down,
           color: AppTheme.errorRed,
