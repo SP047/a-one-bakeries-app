@@ -21,7 +21,7 @@ dependencies:
   path: ^1.8.3
   
   # Date & Time
-  intl: ^0.18.1
+  intl: ^0.20.2
   
   # File Picker for documents
   file_picker: ^10.3.3
@@ -35,8 +35,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_launcher_icons: ^0.13.1
-  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_lints: ^6.0.0
 
 # App Icon Configuration (we'll customize this later)
 flutter_icons:
