@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:a_one_bakeries_app/theme/app_theme.dart';
 import 'package:a_one_bakeries_app/screens/main_navigation.dart';
-import 'package:sqflite/sqflite.dart';
 
 /// Main Entry Point of A-One Bakeries App
 /// 
