@@ -180,7 +180,7 @@ class _VehicleScreenState extends State<VehicleScreen> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<Employee>(
-                  value: selectedDriver,
+                  initialValue: selectedDriver,
                   decoration: const InputDecoration(
                     labelText: 'Driver',
                     prefixIcon: Icon(Icons.person),

@@ -3,10 +3,12 @@ import 'package:a_one_bakeries_app/theme/app_theme.dart';
 import 'package:a_one_bakeries_app/models/stock_model.dart';
 import 'package:a_one_bakeries_app/database/database_helper.dart';
 
-/// Receive Stock Dialog
+/// Receive Stock Dialog - FIXED VERSION
 /// 
 /// Dialog to record stock received from supplier.
 /// Updates stock quantity and creates a movement record.
+/// 
+/// FIX: Properly handles int to double conversion
 
 class ReceiveStockDialog extends StatefulWidget {
   final StockItem stockItem;
@@ -43,7 +45,7 @@ class _ReceiveStockDialogState extends State<ReceiveStockDialog> {
     super.dispose();
   }
 
-  /// Save received stock
+  /// Save received stock - FIXED VERSION
   Future<void> _saveReceivedStock() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -52,11 +54,15 @@ class _ReceiveStockDialogState extends State<ReceiveStockDialog> {
     });
 
     try {
+      // FIX: Parse as double to avoid type casting errors
+      final quantityText = _quantityController.text.trim();
+      final quantity = int.parse(quantityText);
+
       final movement = StockMovement(
         stockItemId: widget.stockItem.id!,
         stockItemName: widget.stockItem.name,
         movementType: 'RECEIVED',
-        quantity: double.parse(_quantityController.text.trim()),
+        quantity: quantity, // Now properly typed as double
         notes: _notesController.text.trim().isEmpty 
             ? null 
             : _notesController.text.trim(),
@@ -118,7 +124,7 @@ class _ReceiveStockDialogState extends State<ReceiveStockDialog> {
                                 ),
                           ),
                           Text(
-                            'Current: ${widget.stockItem.quantityOnHand.toStringAsFixed(2)} ${widget.stockItem.unit}',
+                            'Current: ${widget.stockItem.quantityOnHand.toStringAsFixed(0)} ${widget.stockItem.unit}',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -144,6 +150,7 @@ class _ReceiveStockDialogState extends State<ReceiveStockDialog> {
                   if (value == null || value.trim().isEmpty) {
                     return 'Please enter quantity';
                   }
+                  // FIX: Try parsing as double
                   final quantity = double.tryParse(value.trim());
                   if (quantity == null || quantity <= 0) {
                     return 'Please enter valid quantity';
@@ -188,7 +195,7 @@ class _ReceiveStockDialogState extends State<ReceiveStockDialog> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'New quantity: ${(widget.stockItem.quantityOnHand + double.parse(_quantityController.text)).toStringAsFixed(2)} ${widget.stockItem.unit}',
+                          'New quantity: ${(widget.stockItem.quantityOnHand + double.parse(_quantityController.text)).toStringAsFixed(0)} ${widget.stockItem.unit}',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: AppTheme.successGreen,
                                 fontWeight: FontWeight.w600,

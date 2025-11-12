@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -7,6 +8,7 @@ import 'package:a_one_bakeries_app/models/employee_model.dart';
 import 'package:a_one_bakeries_app/models/vehicle_model.dart';
 import 'package:a_one_bakeries_app/models/order_model.dart';
 import 'package:a_one_bakeries_app/models/finance_model.dart';
+import 'package:a_one_bakeries_app/models/supplier_model.dart';
 
 /// Database Helper - Complete Working Version
 /// 
@@ -36,12 +38,67 @@ class DatabaseHelper {
     
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,  // <-- Add this
     );
   }
 
   Future<void> _onCreate(Database db, int version) async {
+  Future<void> onUpgrade(Database db, int oldVersion, int newVersion) async {
+  if (oldVersion < 2) {
+    // Add supplier tables
+    await db.execute('''
+      CREATE TABLE suppliers(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        contactPerson TEXT NOT NULL,
+        phoneNumber TEXT NOT NULL,
+        email TEXT,
+        address TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE supplier_invoices(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        supplierId INTEGER NOT NULL,
+        supplierName TEXT NOT NULL,
+        invoiceNumber TEXT NOT NULL,
+        amount REAL NOT NULL,
+        invoiceDate TEXT NOT NULL,
+        dueDate TEXT,
+        notes TEXT,
+        createdAt TEXT NOT NULL,
+        FOREIGN KEY (supplierId) REFERENCES suppliers(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE supplier_payments(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        supplierId INTEGER NOT NULL,
+        supplierName TEXT NOT NULL,
+        amount REAL NOT NULL,
+        paymentMethod TEXT NOT NULL,
+        reference TEXT,
+        notes TEXT,
+        paymentDate TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        FOREIGN KEY (supplierId) REFERENCES suppliers(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // Add supplierName column to stock_movements
+    await db.execute('ALTER TABLE stock_movements ADD COLUMN supplierName TEXT');
+
+    // Add indexes
+    await db.execute('CREATE INDEX idx_supplier_invoices_supplierId ON supplier_invoices(supplierId)');
+    await db.execute('CREATE INDEX idx_supplier_payments_supplierId ON supplier_payments(supplierId)');
+  }
+} 
     // Stock Items
     await db.execute('''
       CREATE TABLE stock_items(
@@ -63,6 +120,7 @@ class DatabaseHelper {
         movementType TEXT NOT NULL,
         quantity REAL NOT NULL,
         employeeName TEXT,
+        supplierName TEXT,
         notes TEXT,
         createdAt TEXT NOT NULL,
         FOREIGN KEY (stockItemId) REFERENCES stock_items(id) ON DELETE CASCADE
@@ -176,6 +234,53 @@ class DatabaseHelper {
         createdAt TEXT NOT NULL
       )
     ''');
+    
+
+    // Suppliers
+await db.execute('''
+  CREATE TABLE suppliers(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    contactPerson TEXT NOT NULL,
+    phoneNumber TEXT NOT NULL,
+    email TEXT,
+    address TEXT,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+  )
+''');
+
+// Supplier Invoices
+await db.execute('''
+  CREATE TABLE supplier_invoices(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    supplierId INTEGER NOT NULL,
+    supplierName TEXT NOT NULL,
+    invoiceNumber TEXT NOT NULL,
+    amount REAL NOT NULL,
+    invoiceDate TEXT NOT NULL,
+    dueDate TEXT,
+    notes TEXT,
+    createdAt TEXT NOT NULL,
+    FOREIGN KEY (supplierId) REFERENCES suppliers(id) ON DELETE CASCADE
+  )
+''');
+
+// Supplier Payments
+await db.execute('''
+  CREATE TABLE supplier_payments(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    supplierId INTEGER NOT NULL,
+    supplierName TEXT NOT NULL,
+    amount REAL NOT NULL,
+    paymentMethod TEXT NOT NULL,
+    reference TEXT,
+    notes TEXT,
+    paymentDate TEXT NOT NULL,
+    createdAt TEXT NOT NULL,
+    FOREIGN KEY (supplierId) REFERENCES suppliers(id) ON DELETE CASCADE
+  )
+''');
 
     // Create all indexes
     await db.execute('CREATE INDEX idx_stock_movements_stockItemId ON stock_movements(stockItemId)');
@@ -189,6 +294,8 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX idx_order_items_orderId ON order_items(orderId)');
     await db.execute('CREATE INDEX idx_income_createdAt ON income(createdAt)');
     await db.execute('CREATE INDEX idx_expenses_createdAt ON expenses(createdAt)');
+    await db.execute('CREATE INDEX idx_supplier_invoices_supplierId ON supplier_invoices(supplierId)');
+await db.execute('CREATE INDEX idx_supplier_payments_supplierId ON supplier_payments(supplierId)');
   }
 
   // ==================== STOCK OPERATIONS ====================
@@ -231,9 +338,9 @@ class DatabaseHelper {
       final stockMaps = await txn.query('stock_items', where: 'id = ?', whereArgs: [movement.stockItemId]);
       if (stockMaps.isNotEmpty) {
         final stockItem = StockItem.fromMap(stockMaps.first);
-        double newQuantity = movement.movementType == 'RECEIVED'
+        int newQuantity = (movement.movementType == 'RECEIVED'
             ? stockItem.quantityOnHand + movement.quantity
-            : stockItem.quantityOnHand - movement.quantity;
+            : stockItem.quantityOnHand - movement.quantity);
         
         await txn.update(
           'stock_items',
@@ -330,6 +437,11 @@ class DatabaseHelper {
     final maps = await db.query('employee_documents', where: 'employeeId = ?', whereArgs: [employeeId], orderBy: 'uploadedAt DESC');
     return List.generate(maps.length, (i) => EmployeeDocument.fromMap(maps[i]));
   }
+
+  Future<int> deleteEmployeeDocument(int id) async {
+  final db = await database;
+  return await db.delete('employee_documents', where: 'id = ?', whereArgs: [id]);
+}
 
   // ==================== VEHICLE OPERATIONS ====================
 
@@ -533,5 +645,94 @@ class DatabaseHelper {
   Future<void> close() async {
     final db = await database;
     await db.close();
+  }
+
+  // ==================== SUPPLIER OPERATIONS ====================
+
+Future<int> insertSupplier(Supplier supplier) async {
+  final db = await database;
+  return await db.insert('suppliers', supplier.toMap());
+}
+
+Future<int> updateSupplier(Supplier supplier) async {
+  final db = await database;
+  return await db.update('suppliers', supplier.toMap(), 
+      where: 'id = ?', whereArgs: [supplier.id]);
+}
+
+Future<int> deleteSupplier(int id) async {
+  final db = await database;
+  return await db.delete('suppliers', where: 'id = ?', whereArgs: [id]);
+}
+
+Future<List<Supplier>> getAllSuppliers() async {
+  final db = await database;
+  final maps = await db.query('suppliers', orderBy: 'name ASC');
+  return List.generate(maps.length, (i) => Supplier.fromMap(maps[i]));
+}
+
+Future<Supplier?> getSupplierById(int id) async {
+  final db = await database;
+  final maps = await db.query('suppliers', where: 'id = ?', whereArgs: [id]);
+  if (maps.isEmpty) return null;
+  return Supplier.fromMap(maps.first);
+}
+
+// Supplier Invoices
+Future<int> insertSupplierInvoice(SupplierInvoice invoice) async {
+  final db = await database;
+  return await db.insert('supplier_invoices', invoice.toMap());
+}
+
+Future<List<SupplierInvoice>> getSupplierInvoices(int supplierId) async {
+  final db = await database;
+  final maps = await db.query('supplier_invoices', 
+      where: 'supplierId = ?', 
+      whereArgs: [supplierId],
+      orderBy: 'invoiceDate DESC');
+  return List.generate(maps.length, (i) => SupplierInvoice.fromMap(maps[i]));
+}
+
+Future<double> getTotalInvoices(int supplierId) async {
+  final db = await database;
+  final result = await db.rawQuery(
+    'SELECT SUM(amount) as total FROM supplier_invoices WHERE supplierId = ?',
+    [supplierId],
+  );
+  return result.first['total'] as double? ?? 0.0;
+}
+
+// Supplier Payments
+Future<int> insertSupplierPayment(SupplierPayment payment) async {
+  final db = await database;
+  return await db.insert('supplier_payments', payment.toMap());
+}
+
+Future<List<SupplierPayment>> getSupplierPayments(int supplierId) async {
+  final db = await database;
+  final maps = await db.query('supplier_payments', 
+      where: 'supplierId = ?', 
+      whereArgs: [supplierId],
+      orderBy: 'paymentDate DESC');
+  return List.generate(maps.length, (i) => SupplierPayment.fromMap(maps[i]));
+}
+
+Future<double> getTotalPayments(int supplierId) async {
+  final db = await database;
+  final result = await db.rawQuery(
+    'SELECT SUM(amount) as total FROM supplier_payments WHERE supplierId = ?',
+    [supplierId],
+  );
+  return result.first['total'] as double? ?? 0.0;
+}
+
+Future<double> getSupplierBalance(int supplierId) async {
+  final totalInvoices = await getTotalInvoices(supplierId);
+  final totalPayments = await getTotalPayments(supplierId);
+  return totalInvoices - totalPayments;
+}
+
+
+  FutureOr<void> _onUpgrade(Database db, int oldVersion, int newVersion) {
   }
 }

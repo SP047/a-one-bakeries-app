@@ -2,6 +2,7 @@
 /// 
 /// Represents an employee in the bakery business.
 /// Stores personal info, role, and employment details.
+library;
 
 class Employee {
   final int? id;
@@ -11,7 +12,7 @@ class Employee {
   final String idType;             // "ID" or "PASSPORT"
   final DateTime birthDate;
   final String role;               // Baker, Driver, General Worker, Supervisor, Manager
-  final String? photoPath;         // Path to employee photo
+  final String? photoPath;         // Path to employee photo (local file path)
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -42,6 +43,12 @@ class Employee {
     }
     return age;
   }
+
+  /// Check if employee has photo
+  bool get hasPhoto => photoPath != null && photoPath!.isNotEmpty;
+  
+  /// Get photo file widget helper
+  /// Returns a widget showing the employee photo or default avatar
 
   /// Convert to Map for database
   Map<String, dynamic> toMap() {

@@ -4,6 +4,7 @@ import 'package:a_one_bakeries_app/models/employee_model.dart';
 import 'package:a_one_bakeries_app/database/database_helper.dart';
 import 'package:a_one_bakeries_app/screens/employee_details_screen.dart';
 import 'package:a_one_bakeries_app/widgets/add_edit_employee_dialog.dart';
+import 'package:a_one_bakeries_app/widgets/employee_photo_widget.dart';
 import 'package:intl/intl.dart';
 
 /// Employee Screen
@@ -335,31 +336,11 @@ class _EmployeeScreenState extends State<EmployeeScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
-              // Employee Photo or Avatar
-              CircleAvatar(
+              // Employee Photo using custom widget
+              EmployeePhotoWidget(
+                photoPath: employee.photoPath,
                 radius: 30,
                 backgroundColor: roleColor.withOpacity(0.1),
-                child: employee.photoPath != null
-                    ? ClipOval(
-                        child: Image.network(
-                          employee.photoPath!,
-                          width: 60,
-                          height: 60,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              Icons.person,
-                              size: 30,
-                              color: roleColor,
-                            );
-                          },
-                        ),
-                      )
-                    : Icon(
-                        Icons.person,
-                        size: 30,
-                        color: roleColor,
-                      ),
               ),
               const SizedBox(width: 16),
 

@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:a_one_bakeries_app/theme/app_theme.dart';
 import 'package:a_one_bakeries_app/models/employee_model.dart';
 import 'package:a_one_bakeries_app/database/database_helper.dart';
+import 'package:a_one_bakeries_app/services/photo_picker_service.dart';
+import 'package:a_one_bakeries_app/widgets/employee_photo_widget.dart';
+import 'package:a_one_bakeries_app/widgets/upload_document_dialog.dart';
+import 'dart:io';
 import 'package:intl/intl.dart';
 
 /// Employee Details Screen
@@ -28,6 +32,9 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
   final DatabaseHelper _dbHelper = DatabaseHelper();
   late TabController _tabController;
 
+  // Current employee (can be updated)
+  late Employee _currentEmployee;
+
   // Credit account data
   double _creditBalance = 0.0;
   List<CreditTransaction> _transactions = [];
@@ -43,6 +50,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
   @override
   void initState() {
     super.initState();
+    _currentEmployee = widget.employee;
     _tabController = TabController(length: 3, vsync: this);
     _loadCreditData();
     _loadDocuments();
@@ -62,9 +70,9 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
 
     try {
       final balance =
-          await _dbHelper.getEmployeeCreditBalance(widget.employee.id!);
+          await _dbHelper.getEmployeeCreditBalance(_currentEmployee.id!);
       final transactions = await _dbHelper
-          .getCreditTransactionsByEmployeeId(widget.employee.id!);
+          .getCreditTransactionsByEmployeeId(_currentEmployee.id!);
 
       setState(() {
         _creditBalance = balance;
@@ -86,7 +94,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
 
     try {
       final documents =
-          await _dbHelper.getEmployeeDocuments(widget.employee.id!);
+          await _dbHelper.getEmployeeDocuments(_currentEmployee.id!);
 
       setState(() {
         _documents = documents;
@@ -164,8 +172,8 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
               if (formKey.currentState!.validate()) {
                 try {
                   final transaction = CreditTransaction(
-                    employeeId: widget.employee.id!,
-                    employeeName: widget.employee.fullName,
+                    employeeId: _currentEmployee.id!,
+                    employeeName: _currentEmployee.fullName,
                     transactionType: type,
                     amount: double.parse(amountController.text.trim()),
                     reason: reasonController.text.trim(),
@@ -204,22 +212,73 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
     }
   }
 
-  /// Show upload document dialog (placeholder for now)
+  /// Show upload document dialog
   Future<void> _showUploadDocumentDialog() async {
-    showDialog(
+    final result = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Upload Document'),
-        content: const Text(
-            'Document upload feature will be fully implemented with file picker.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
+      builder: (context) => UploadDocumentDialog(
+        employeeId: _currentEmployee.id!,
       ),
     );
+
+    if (result == true) {
+      _loadDocuments();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Document uploaded successfully!'),
+            backgroundColor: AppTheme.successGreen,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Handle photo tap - show options to add/change/remove
+  Future<void> _handlePhotoTap() async {
+    final photoService = PhotoPickerService();
+    final newPhotoPath = await photoService.showPhotoOptions(
+      context,
+      _currentEmployee.photoPath,
+    );
+
+    // If null, user cancelled
+    if (newPhotoPath == null) return;
+
+    // Update employee in database
+    final updatedEmployee = _currentEmployee.copyWith(
+      photoPath: newPhotoPath.isEmpty ? null : newPhotoPath,
+    );
+
+    try {
+      await _dbHelper.updateEmployee(updatedEmployee);
+      
+      // Update local state
+      setState(() {
+        _currentEmployee = updatedEmployee;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(newPhotoPath.isEmpty 
+                ? 'Photo removed' 
+                : 'Photo updated successfully!'),
+            backgroundColor: AppTheme.successGreen,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating photo: $e'),
+            backgroundColor: AppTheme.errorRed,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -227,7 +286,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
     return Scaffold(
       backgroundColor: AppTheme.creamBackground,
       appBar: AppBar(
-        title: Text(widget.employee.fullName),
+        title: Text(_currentEmployee.fullName),
       ),
       body: Column(
         children: [
@@ -279,23 +338,40 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
       ),
       child: Row(
         children: [
-          // Employee Photo
-          CircleAvatar(
-            radius: 40,
-            backgroundColor: Colors.white,
-            child: widget.employee.photoPath != null
-                ? ClipOval(
-                    child: Image.network(
-                      widget.employee.photoPath!,
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(Icons.person, size: 40);
-                      },
+          // Employee Photo with edit option
+          GestureDetector(
+            onTap: _handlePhotoTap,
+            child: Stack(
+              children: [
+                EmployeePhotoWidget(
+                  photoPath: _currentEmployee.photoPath,
+                  radius: 40,
+                  backgroundColor: Colors.white.withOpacity(0.2),
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppTheme.primaryBrown,
+                        width: 2,
+                      ),
                     ),
-                  )
-                : const Icon(Icons.person, size: 40),
+                    child: Icon(
+                      _currentEmployee.photoPath == null || _currentEmployee.photoPath!.isEmpty
+                          ? Icons.add_a_photo
+                          : Icons.edit,
+                      size: 16,
+                      color: AppTheme.primaryBrown,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(width: 16),
 
@@ -305,7 +381,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.employee.fullName,
+                  _currentEmployee.fullName,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -313,14 +389,14 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  widget.employee.role,
+                  _currentEmployee.role,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: Colors.white.withOpacity(0.9),
                       ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${widget.employee.age} years old',
+                  '${_currentEmployee.age} years old',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Colors.white.withOpacity(0.8),
                       ),
@@ -340,14 +416,14 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildDetailRow('ID Type', widget.employee.idType),
-          _buildDetailRow('ID Number', widget.employee.idNumber),
+          _buildDetailRow('ID Type', _currentEmployee.idType),
+          _buildDetailRow('ID Number', _currentEmployee.idNumber),
           _buildDetailRow(
-              'Birth Date', DateFormat('dd MMM yyyy').format(widget.employee.birthDate)),
-          _buildDetailRow('Age', '${widget.employee.age} years'),
-          _buildDetailRow('Role', widget.employee.role),
+              'Birth Date', DateFormat('dd MMM yyyy').format(_currentEmployee.birthDate)),
+          _buildDetailRow('Age', '${_currentEmployee.age} years'),
+          _buildDetailRow('Role', _currentEmployee.role),
           _buildDetailRow('Registered',
-              DateFormat('dd MMM yyyy').format(widget.employee.createdAt)),
+              DateFormat('dd MMM yyyy').format(_currentEmployee.createdAt)),
         ],
       ),
     );
@@ -569,47 +645,217 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
     );
   }
 
-  /// Build document card
-  Widget _buildDocumentCard(EmployeeDocument document) {
-    IconData icon;
-    Color color;
+/// Build document card
+Widget _buildDocumentCard(EmployeeDocument document) {
+  IconData icon;
+  Color color;
 
-    switch (document.documentType) {
-      case 'CONTRACT':
-        icon = Icons.description;
-        color = Colors.blue;
-        break;
-      case 'PAYSLIP':
-        icon = Icons.receipt;
-        color = Colors.green;
-        break;
-      case 'DISCIPLINARY':
-        icon = Icons.warning;
-        color = Colors.orange;
-        break;
-      default:
-        icon = Icons.insert_drive_file;
-        color = AppTheme.primaryBrown;
-    }
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.1),
-          child: Icon(icon, color: color),
-        ),
-        title: Text(document.fileName),
-        subtitle: Text(
-          '${document.documentType} • ${_dateFormat.format(document.uploadedAt)}',
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.more_vert),
-          onPressed: () {
-            // TODO: Show document options (view, delete)
-          },
-        ),
-      ),
-    );
+  switch (document.documentType) {
+    case 'CONTRACT':
+      icon = Icons.description;
+      color = Colors.blue;
+      break;
+    case 'PAYSLIP':
+      icon = Icons.receipt;
+      color = Colors.green;
+      break;
+    case 'DISCIPLINARY':
+      icon = Icons.warning;
+      color = Colors.orange;
+      break;
+    case 'ID':
+      icon = Icons.badge;
+      color = Colors.purple;
+      break;
+    case 'OTHER':
+      icon = Icons.insert_drive_file;
+      color = Colors.grey;
+      break;
+    default:
+      icon = Icons.insert_drive_file;
+      color = AppTheme.primaryBrown;
   }
+
+  return Card(
+    margin: const EdgeInsets.only(bottom: 12),
+    child: ListTile(
+      leading: CircleAvatar(
+        backgroundColor: color.withOpacity(0.1),
+        child: Icon(icon, color: color),
+      ),
+      title: Text(document.fileName),
+      subtitle: Text(
+        '${_formatDocumentType(document.documentType)} • ${_dateFormat.format(document.uploadedAt)}',
+      ),
+      trailing: PopupMenuButton<String>(
+        onSelected: (value) {
+          if (value == 'view') {
+            _viewDocument(document);
+          } else if (value == 'delete') {
+            _deleteDocument(document);
+          }
+        },
+        itemBuilder: (context) => [
+          const PopupMenuItem(
+            value: 'view',
+            child: Row(
+              children: [
+                Icon(Icons.visibility, size: 20),
+                SizedBox(width: 8),
+                Text('View'),
+              ],
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete, size: 20, color: AppTheme.errorRed),
+                SizedBox(width: 8),
+                Text('Delete', style: TextStyle(color: AppTheme.errorRed)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Format document type for display
+String _formatDocumentType(String type) {
+  switch (type) {
+    case 'CONTRACT':
+      return 'Contract';
+    case 'PAYSLIP':
+      return 'Payslip';
+    case 'DISCIPLINARY':
+      return 'Disciplinary';
+    case 'ID':
+      return 'ID Document';  
+    case 'OTHER':
+      return 'Other';
+    default:
+      return type;
+  }
+}
+
+/// View document
+void _viewDocument(EmployeeDocument document) {
+  // We'll show the file path for now
+  // In a production app, you'd open the PDF viewer here
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Document Location'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'File: ${document.fileName}',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Path: ${document.filePath}',
+            style: const TextStyle(fontSize: 12),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryBrown.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 20,
+                  color: AppTheme.primaryBrown,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Open this file using your device\'s PDF viewer',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Delete document
+Future<void> _deleteDocument(EmployeeDocument document) async {
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Delete Document'),
+      content: Text('Are you sure you want to delete "${document.fileName}"?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.errorRed,
+          ),
+          child: const Text('Delete'),
+        ),
+      ],
+    ),
+  );
+
+  if (confirm == true) {
+    try {
+      // Delete from database
+      await _dbHelper.deleteEmployeeDocument(document.id!);
+      
+      // Optionally delete the actual file
+      try {
+        final file = File(document.filePath);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        // File deletion failed, but database record is deleted
+        debugPrint('Failed to delete file: $e');
+      }
+
+      _loadDocuments();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Document deleted successfully!'),
+            backgroundColor: AppTheme.successGreen,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting document: $e'),
+            backgroundColor: AppTheme.errorRed,
+          ),
+        );
+      }
+    }
+  }
+}
 }

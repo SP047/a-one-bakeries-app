@@ -313,7 +313,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   Widget _buildAssignmentSelection() {
     if (_orderType == 'DRIVER') {
       return DropdownButtonFormField<Employee>(
-        value: _selectedDriver,
+        initialValue: _selectedDriver,
         decoration: const InputDecoration(
           labelText: 'Select Driver',
           prefixIcon: Icon(Icons.person),
@@ -336,7 +336,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       );
     } else {
       return DropdownButtonFormField<Vehicle>(
-        value: _selectedVehicle,
+        initialValue: _selectedVehicle,
         decoration: const InputDecoration(
           labelText: 'Select Vehicle',
           prefixIcon: Icon(Icons.local_shipping),
@@ -429,7 +429,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
             // Item Type Dropdown
             DropdownButtonFormField<String>(
-              value: item.itemType,
+              initialValue: item.itemType,
               decoration: const InputDecoration(
                 labelText: 'Item',
                 isDense: true,
@@ -451,7 +451,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
             // Trollies (for Bread) or Quantity (for Biscuits) Dropdown
             DropdownButtonFormField<int>(
-              value: item.trolliesOrQty,
+              initialValue: item.trolliesOrQty,
               decoration: InputDecoration(
                 labelText: isBiscuits ? 'Quantity' : 'Trollies',
                 isDense: true,

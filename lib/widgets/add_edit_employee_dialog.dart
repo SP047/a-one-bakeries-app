@@ -199,7 +199,7 @@ class _AddEditEmployeeDialogState extends State<AddEditEmployeeDialog> {
 
               // ID Type Dropdown
               DropdownButtonFormField<String>(
-                value: _selectedIdType,
+                initialValue: _selectedIdType,
                 decoration: const InputDecoration(
                   labelText: 'ID Type',
                   prefixIcon: Icon(Icons.badge),
@@ -263,7 +263,7 @@ class _AddEditEmployeeDialogState extends State<AddEditEmployeeDialog> {
 
               // Role Dropdown
               DropdownButtonFormField<String>(
-                value: _selectedRole,
+                initialValue: _selectedRole,
                 decoration: const InputDecoration(
                   labelText: 'Role',
                   prefixIcon: Icon(Icons.work),

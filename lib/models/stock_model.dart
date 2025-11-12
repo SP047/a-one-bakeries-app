@@ -1,15 +1,15 @@
 /// Stock Model
 /// 
 /// Represents a stock item in the inventory system.
-/// This model handles the database structure for stock items.
+/// Uses integer quantities (whole numbers only).
 
 class StockItem {
-  final int? id;                    // Auto-generated ID (null for new items)
-  final String name;                // Stock item name (e.g., "Flour", "Sugar")
-  final String unit;                // Unit of measurement (e.g., "kg", "L", "bags")
-  final double quantityOnHand;      // Current quantity in stock
-  final DateTime createdAt;         // When item was created
-  final DateTime updatedAt;         // Last update timestamp
+  final int? id;
+  final String name;
+  final String unit;
+  final int quantityOnHand;      // int is fine here
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   StockItem({
     this.id,
@@ -21,7 +21,7 @@ class StockItem {
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
-  /// Convert StockItem to Map for database insertion
+  /// Convert StockItem to Map for database
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -39,18 +39,20 @@ class StockItem {
       id: map['id'] as int?,
       name: map['name'] as String,
       unit: map['unit'] as String,
-      quantityOnHand: map['quantityOnHand'] as double,
+      quantityOnHand: (map['quantityOnHand'] is double) 
+          ? (map['quantityOnHand'] as double).toInt() 
+          : map['quantityOnHand'] as int,
       createdAt: DateTime.parse(map['createdAt'] as String),
       updatedAt: DateTime.parse(map['updatedAt'] as String),
     );
   }
 
-  /// Create a copy of StockItem with updated fields
+  /// Create a copy with updated fields
   StockItem copyWith({
     int? id,
     String? name,
     String? unit,
-    double? quantityOnHand,
+    int? quantityOnHand,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -67,18 +69,19 @@ class StockItem {
 
 /// Stock Movement Model
 /// 
-/// Records all stock movements (received from supplier or allocated to employees).
-/// This creates an audit trail of all stock changes.
+/// Records all stock movements.
+/// Uses integer quantities (whole numbers only).
 
 class StockMovement {
-  final int? id;                    // Auto-generated ID
-  final int stockItemId;            // Foreign key to StockItem
-  final String stockItemName;       // Stock item name (for display)
+  final int? id;
+  final int stockItemId;
+  final String stockItemName;
   final String movementType;        // "RECEIVED" or "ALLOCATED"
-  final double quantity;            // Quantity moved
-  final String? employeeName;       // Employee name (for allocations)
-  final String? notes;              // Additional notes/reason
-  final DateTime createdAt;         // When movement occurred
+  final int quantity;                // CHANGED TO INT - This is the key fix!
+  final String? employeeName;
+  final String? supplierName;        // For receiving from suppliers
+  final String? notes;
+  final DateTime createdAt;
 
   StockMovement({
     this.id,
@@ -87,6 +90,7 @@ class StockMovement {
     required this.movementType,
     required this.quantity,
     this.employeeName,
+    this.supplierName,
     this.notes,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -100,6 +104,7 @@ class StockMovement {
       'movementType': movementType,
       'quantity': quantity,
       'employeeName': employeeName,
+      'supplierName': supplierName,
       'notes': notes,
       'createdAt': createdAt.toIso8601String(),
     };
@@ -112,8 +117,11 @@ class StockMovement {
       stockItemId: map['stockItemId'] as int,
       stockItemName: map['stockItemName'] as String,
       movementType: map['movementType'] as String,
-      quantity: map['quantity'] as double,
+      quantity: (map['quantity'] is double) 
+          ? (map['quantity'] as double).toInt() 
+          : map['quantity'] as int,
       employeeName: map['employeeName'] as String?,
+      supplierName: map['supplierName'] as String?,
       notes: map['notes'] as String?,
       createdAt: DateTime.parse(map['createdAt'] as String),
     );

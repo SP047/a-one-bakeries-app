@@ -2,6 +2,7 @@
 /// 
 /// Represents daily income recorded.
 /// Separated into notes (paper money) and coins.
+library;
 
 class Income {
   final int? id;

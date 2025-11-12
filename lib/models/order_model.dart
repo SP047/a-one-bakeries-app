@@ -2,6 +2,7 @@
 /// 
 /// Represents a production/delivery order for a driver or vehicle.
 /// Tracks quantities only (no pricing).
+library;
 
 class Order {
   final int? id;

@@ -3,11 +3,13 @@ import 'package:a_one_bakeries_app/theme/app_theme.dart';
 import 'package:a_one_bakeries_app/models/stock_model.dart';
 import 'package:a_one_bakeries_app/database/database_helper.dart';
 
-/// Allocate Stock Dialog
+/// Allocate Stock Dialog - FIXED VERSION
 /// 
 /// Dialog to allocate stock to employees for orders.
 /// Validates quantity doesn't exceed stock on hand.
 /// Updates stock quantity and creates a movement record.
+/// 
+/// FIX: Properly handles int to double conversion
 
 class AllocateStockDialog extends StatefulWidget {
   final StockItem stockItem;
@@ -47,7 +49,7 @@ class _AllocateStockDialogState extends State<AllocateStockDialog> {
     super.dispose();
   }
 
-  /// Save allocated stock
+  /// Save allocated stock - FIXED VERSION
   Future<void> _saveAllocatedStock() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -56,11 +58,15 @@ class _AllocateStockDialogState extends State<AllocateStockDialog> {
     });
 
     try {
+      // FIX: Parse as double to avoid type casting errors
+      final quantityText = _quantityController.text.trim();
+      final quantity = int.parse(quantityText);
+
       final movement = StockMovement(
         stockItemId: widget.stockItem.id!,
         stockItemName: widget.stockItem.name,
         movementType: 'ALLOCATED',
-        quantity: double.parse(_quantityController.text.trim()),
+        quantity: quantity, // Now properly typed as double
         employeeName: _employeeController.text.trim(),
         notes: _notesController.text.trim().isEmpty 
             ? null 
@@ -123,7 +129,7 @@ class _AllocateStockDialogState extends State<AllocateStockDialog> {
                                 ),
                           ),
                           Text(
-                            'Available: ${widget.stockItem.quantityOnHand.toStringAsFixed(2)} ${widget.stockItem.unit}',
+                            'Available: ${widget.stockItem.quantityOnHand.toStringAsFixed(0)} ${widget.stockItem.unit}',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -167,12 +173,13 @@ class _AllocateStockDialogState extends State<AllocateStockDialog> {
                   if (value == null || value.trim().isEmpty) {
                     return 'Please enter quantity';
                   }
+                  // FIX: Try parsing as double
                   final quantity = double.tryParse(value.trim());
                   if (quantity == null || quantity <= 0) {
                     return 'Please enter valid quantity';
                   }
                   if (quantity > widget.stockItem.quantityOnHand) {
-                    return 'Insufficient stock (Available: ${widget.stockItem.quantityOnHand})';
+                    return 'Insufficient stock (Available: ${widget.stockItem.quantityOnHand.toStringAsFixed(0)})';
                   }
                   return null;
                 },
@@ -215,7 +222,7 @@ class _AllocateStockDialogState extends State<AllocateStockDialog> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Remaining: ${(widget.stockItem.quantityOnHand - double.parse(_quantityController.text)).toStringAsFixed(2)} ${widget.stockItem.unit}',
+                          'Remaining: ${(widget.stockItem.quantityOnHand - double.parse(_quantityController.text)).toStringAsFixed(0)} ${widget.stockItem.unit}',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: AppTheme.secondaryOrange,
                                 fontWeight: FontWeight.w600,

@@ -3,16 +3,15 @@ import 'package:a_one_bakeries_app/theme/app_theme.dart';
 import 'package:a_one_bakeries_app/models/stock_model.dart';
 import 'package:a_one_bakeries_app/database/database_helper.dart';
 import 'package:a_one_bakeries_app/screens/stock_movement_screen.dart';
+import 'package:a_one_bakeries_app/screens/multi_item_allocation_screen.dart';
+import 'package:a_one_bakeries_app/screens/multi_item_receiving_screen.dart';
+import 'package:a_one_bakeries_app/screens/supplier_screen.dart';
 import 'package:a_one_bakeries_app/widgets/add_edit_stock_dialog.dart';
-import 'package:a_one_bakeries_app/widgets/receive_stock_dialog.dart';
-import 'package:a_one_bakeries_app/widgets/allocate_stock_dialog.dart';
 
 /// Stock Screen
 /// 
 /// Main screen for stock management.
-/// Displays all stock items with their quantities.
-/// Allows adding, editing, deleting stock items.
-/// Allows receiving stock and allocating stock.
+/// Enhanced with expandable FAB and multi-item operations.
 
 class StockScreen extends StatefulWidget {
   const StockScreen({super.key});
@@ -21,26 +20,54 @@ class StockScreen extends StatefulWidget {
   State<StockScreen> createState() => _StockScreenState();
 }
 
-class _StockScreenState extends State<StockScreen> {
+class _StockScreenState extends State<StockScreen> with SingleTickerProviderStateMixin {
   final DatabaseHelper _dbHelper = DatabaseHelper();
   List<StockItem> _stockItems = [];
   List<StockItem> _filteredStockItems = [];
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
 
+  // FAB expansion state
+  bool _isFabExpanded = false;
+  late AnimationController _animationController;
+  late Animation<double> _expandAnimation;
+
   @override
   void initState() {
     super.initState();
     _loadStockItems();
+    
+    // Initialize animation controller
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _expandAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    );
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _animationController.dispose();
     super.dispose();
   }
 
-  /// Load all stock items from database
+  /// Toggle FAB expansion
+  void _toggleFab() {
+    setState(() {
+      _isFabExpanded = !_isFabExpanded;
+      if (_isFabExpanded) {
+        _animationController.forward();
+      } else {
+        _animationController.reverse();
+      }
+    });
+  }
+
+  /// Load all stock items
   Future<void> _loadStockItems() async {
     setState(() {
       _isLoading = true;
@@ -63,7 +90,7 @@ class _StockScreenState extends State<StockScreen> {
     }
   }
 
-  /// Search/filter stock items
+  /// Filter stock items
   void _filterStockItems(String query) {
     setState(() {
       if (query.isEmpty) {
@@ -79,6 +106,8 @@ class _StockScreenState extends State<StockScreen> {
 
   /// Show add stock dialog
   Future<void> _showAddStockDialog() async {
+    _toggleFab(); // Close FAB first
+    
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => const AddEditStockDialog(),
@@ -145,42 +174,56 @@ class _StockScreenState extends State<StockScreen> {
     }
   }
 
-  /// Show receive stock dialog
-  Future<void> _showReceiveStockDialog(StockItem item) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => ReceiveStockDialog(stockItem: item),
-    );
-
-    if (result == true) {
-      _loadStockItems();
-      if (mounted) {
-        _showSuccessSnackBar('Stock received successfully!');
-      }
-    }
-  }
-
-  /// Show allocate stock dialog
-  Future<void> _showAllocateStockDialog(StockItem item) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AllocateStockDialog(stockItem: item),
-    );
-
-    if (result == true) {
-      _loadStockItems();
-      if (mounted) {
+  /// Navigate to multi-item allocation
+  void _navigateToMultiItemAllocation() {
+    _toggleFab(); // Close FAB first
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MultiItemAllocationScreen(),
+      ),
+    ).then((result) {
+      if (result == true) {
+        _loadStockItems();
         _showSuccessSnackBar('Stock allocated successfully!');
       }
-    }
+    });
   }
 
-  /// Navigate to stock movement screen
+  /// Navigate to multi-item receiving
+  void _navigateToMultiItemReceiving() {
+    _toggleFab(); // Close FAB first
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MultiItemReceivingScreen(),
+      ),
+    ).then((result) {
+      if (result == true) {
+        _loadStockItems();
+        _showSuccessSnackBar('Stock received successfully!');
+      }
+    });
+  }
+
+  /// Navigate to stock movements
   void _navigateToStockMovements() {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const StockMovementScreen(),
+      ),
+    );
+  }
+
+  /// Navigate to suppliers
+  void _navigateToSuppliers() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SupplierScreen(),
       ),
     );
   }
@@ -192,6 +235,11 @@ class _StockScreenState extends State<StockScreen> {
       appBar: AppBar(
         title: const Text('Stock Management'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.business),
+            onPressed: _navigateToSuppliers,
+            tooltip: 'Suppliers',
+          ),
           IconButton(
             icon: const Icon(Icons.history),
             onPressed: _navigateToStockMovements,
@@ -244,113 +292,81 @@ class _StockScreenState extends State<StockScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddStockDialog,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _buildExpandableFab(),
     );
   }
 
-  /// Build stock item card
+  /// Build stock item card (without receive/allocate buttons)
   Widget _buildStockItemCard(StockItem item) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            // Header Row
-            Row(
-              children: [
-                // Item Icon
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryBrown.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.inventory_2,
-                    color: AppTheme.primaryBrown,
-                  ),
-                ),
-                const SizedBox(width: 12),
+            // Item Icon
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBrown.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.inventory_2,
+                color: AppTheme.primaryBrown,
+              ),
+            ),
+            const SizedBox(width: 12),
 
-                // Item Name and Quantity
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            // Item Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.name,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${item.quantityOnHand} ${item.unit}', // No decimals!
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppTheme.primaryBrown,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Edit and Delete Menu
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'edit') {
+                  _showEditStockDialog(item);
+                } else if (value == 'delete') {
+                  _deleteStockItem(item);
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
                     children: [
-                      Text(
-                        item.name,
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${item.quantityOnHand.toStringAsFixed(2)} ${item.unit}',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: AppTheme.primaryBrown,
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
+                      Icon(Icons.edit, size: 20),
+                      SizedBox(width: 8),
+                      Text('Edit'),
                     ],
                   ),
                 ),
-
-                // Edit and Delete Buttons
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _showEditStockDialog(item);
-                    } else if (value == 'delete') {
-                      _deleteStockItem(item);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 20),
-                          SizedBox(width: 8),
-                          Text('Edit'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete, size: 20, color: AppTheme.errorRed),
-                          SizedBox(width: 8),
-                          Text('Delete', style: TextStyle(color: AppTheme.errorRed)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-            const Divider(height: 24),
-
-            // Action Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _showReceiveStockDialog(item),
-                    icon: const Icon(Icons.add_circle_outline, size: 20),
-                    label: const Text('Receive'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showAllocateStockDialog(item),
-                    icon: const Icon(Icons.remove_circle_outline, size: 20),
-                    label: const Text('Allocate'),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, size: 20, color: AppTheme.errorRed),
+                      SizedBox(width: 8),
+                      Text('Delete', style: TextStyle(color: AppTheme.errorRed)),
+                    ],
                   ),
                 ),
               ],
@@ -361,7 +377,109 @@ class _StockScreenState extends State<StockScreen> {
     );
   }
 
-  /// Build empty state
+  /// Build expandable FAB with speed dial
+  Widget _buildExpandableFab() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // Backdrop
+        if (_isFabExpanded)
+          GestureDetector(
+            onTap: _toggleFab,
+            child: Container(
+              color: Colors.black54,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+          ),
+
+        // Speed dial options
+        ScaleTransition(
+          scale: _expandAnimation,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _buildSpeedDialOption(
+                label: 'Allocate Stock',
+                icon: Icons.remove_circle_outline,
+                color: AppTheme.secondaryOrange,
+                onTap: _navigateToMultiItemAllocation,
+              ),
+              const SizedBox(height: 16),
+              _buildSpeedDialOption(
+                label: 'Receive Stock',
+                icon: Icons.add_circle_outline,
+                color: AppTheme.successGreen,
+                onTap: _navigateToMultiItemReceiving,
+              ),
+              const SizedBox(height: 16),
+              _buildSpeedDialOption(
+                label: 'Add Stock Item',
+                icon: Icons.add,
+                color: AppTheme.primaryBrown,
+                onTap: _showAddStockDialog,
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+
+        // Main FAB
+        FloatingActionButton(
+          onPressed: _toggleFab,
+          child: AnimatedIcon(
+            icon: AnimatedIcons.menu_close,
+            progress: _expandAnimation,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Build speed dial option
+  Widget _buildSpeedDialOption({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        FloatingActionButton(
+          heroTag: label,
+          onPressed: onTap,
+          backgroundColor: color,
+          mini: true,
+          child: Icon(icon),
+        ),
+      ],
+    );
+  }
+
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -395,7 +513,6 @@ class _StockScreenState extends State<StockScreen> {
     );
   }
 
-  /// Show success snackbar
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -406,7 +523,6 @@ class _StockScreenState extends State<StockScreen> {
     );
   }
 
-  /// Show error snackbar
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

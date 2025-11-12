@@ -3,19 +3,22 @@ import 'package:a_one_bakeries_app/theme/app_theme.dart';
 import 'package:a_one_bakeries_app/widgets/summary_card.dart';
 import 'package:a_one_bakeries_app/widgets/add_income_dialog.dart';
 import 'package:a_one_bakeries_app/widgets/add_expense_dialog.dart';
+import 'package:a_one_bakeries_app/widgets/add_edit_stock_dialog.dart';
+import 'package:a_one_bakeries_app/widgets/add_edit_employee_dialog.dart';
 import 'package:a_one_bakeries_app/database/database_helper.dart';
 import 'package:a_one_bakeries_app/screens/vehicle_screen.dart';
+import 'package:a_one_bakeries_app/screens/stock_screen.dart';
+import 'package:a_one_bakeries_app/screens/employee_screen.dart';
+import 'package:a_one_bakeries_app/screens/orders_screen.dart';
+import 'package:a_one_bakeries_app/screens/finance_screen.dart';
+import 'package:a_one_bakeries_app/screens/create_order_screen.dart';
+import 'package:a_one_bakeries_app/screens/notifications_screen.dart';
 import 'package:intl/intl.dart';
 
 /// Dashboard Screen
 /// 
-/// This is the main screen users see when they open the app.
-/// It displays summaries of:
-/// - Stock levels
-/// - Today's orders
-/// - Income & Expenses
-/// 
-/// In later phases, we'll connect this to real database data.
+/// Main screen with overview, quick actions, and navigation.
+/// Enhanced with clickable cards and working action buttons.
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -25,9 +28,9 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // Date formatter for displaying current date
   final DateFormat _dateFormat = DateFormat('EEEE, MMMM d, yyyy');
   final DatabaseHelper _dbHelper = DatabaseHelper();
+  final NumberFormat _currencyFormat = NumberFormat.currency(symbol: 'R ');
   
   // Dashboard data
   int _stockItemsCount = 0;
@@ -35,9 +38,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _todayBreadQuantity = 0;
   double _todayIncome = 0.0;
   double _todayExpenses = 0.0;
+  int _notificationCount = 3; // Mock notification count
   bool _isLoading = true;
-
-  final NumberFormat _currencyFormat = NumberFormat.currency(symbol: 'R ');
 
   @override
   void initState() {
@@ -50,30 +52,144 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() {
       _isLoading = true;
     });
-    
+
     try {
-      // Load all dashboard data in parallel for better performance
-      final results = await Future.wait([
-        _dbHelper.getAllStockItems(),
-        _dbHelper.getAllEmployees(),
-        _dbHelper.getTodayBreadQuantity(),
-        _dbHelper.getTodayIncome(),
-        _dbHelper.getTodayExpenses(),
-      ]);
-      
+      final stockItems = await _dbHelper.getAllStockItems();
+      final employees = await _dbHelper.getAllEmployees();
+      final breadQty = await _dbHelper.getTodayBreadQuantity();
+      final todayIncome = await _dbHelper.getTodayIncome();
+      final todayExpenses = await _dbHelper.getTodayExpenses();
+
       setState(() {
-        _stockItemsCount = (results[0] as List).length;
-        _employeesCount = (results[1] as List).length;
-        _todayBreadQuantity = results[2] as int;
-        _todayIncome = results[3] as double;
-        _todayExpenses = results[4] as double;
+        _stockItemsCount = stockItems.length;
+        _employeesCount = employees.length;
+        _todayBreadQuantity = breadQty;
+        _todayIncome = todayIncome;
+        _todayExpenses = todayExpenses;
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading dashboard data: $e');
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  /// Navigate to Stock Screen
+  void _navigateToStock() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const StockScreen()),
+    ).then((_) => _loadDashboardData());
+  }
+
+  /// Navigate to Employee Screen
+  void _navigateToEmployees() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const EmployeeScreen()),
+    ).then((_) => _loadDashboardData());
+  }
+
+  /// Navigate to Orders Screen
+  void _navigateToOrders() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const OrdersScreen()),
+    ).then((_) => _loadDashboardData());
+  }
+
+  /// Navigate to Finance Screen
+  void _navigateToFinance() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const FinanceScreen()),
+    ).then((_) => _loadDashboardData());
+  }
+
+  /// Navigate to Notifications Screen
+  void _navigateToNotifications() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+    ).then((_) {
+      // Reset notification count after viewing
+      setState(() {
+        _notificationCount = 0;
+      });
+    });
+  }
+
+  /// Show New Order Screen
+  void _showNewOrderScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CreateOrderScreen()),
+    ).then((result) {
+      if (result == true) {
+        _loadDashboardData();
+        _showSuccessSnackBar('Order created successfully!');
+      }
+    });
+  }
+
+  /// Show Add Stock Dialog
+  Future<void> _showAddStockDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => const AddEditStockDialog(),
+    );
+
+    if (result == true) {
+      _loadDashboardData();
+      _showSuccessSnackBar('Stock item added successfully!');
+    }
+  }
+
+  /// Show Add Employee Dialog
+  Future<void> _showAddEmployeeDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => const AddEditEmployeeDialog(),
+    );
+
+    if (result == true) {
+      _loadDashboardData();
+      _showSuccessSnackBar('Employee registered successfully!');
+    }
+  }
+
+  /// Show Add Vehicle Screen
+  void _showAddVehicleScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const VehicleScreen()),
+    ).then((_) => _loadDashboardData());
+  }
+
+  /// Show Record Income Dialog
+  Future<void> _showRecordIncomeDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => const AddIncomeDialog(),
+    );
+
+    if (result == true) {
+      _loadDashboardData();
+      _showSuccessSnackBar('Income recorded successfully!');
+    }
+  }
+
+  /// Show Record Expense Dialog
+  Future<void> _showRecordExpenseDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => const AddExpenseDialog(),
+    );
+
+    if (result == true) {
+      _loadDashboardData();
+      _showSuccessSnackBar('Expense recorded successfully!');
     }
   }
 
@@ -82,28 +198,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       backgroundColor: AppTheme.creamBackground,
       
-      // App Bar with business name and date
+      // App Bar with notifications
       appBar: AppBar(
-        title: const Text('A-One Bakeries'),
+        title: const Text('A-One Bakeries PTY Ltd'),
         actions: [
-          // Notification icon (placeholder for future feature)
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-              // TODO: Implement notifications in future
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Notifications coming soon!'),
-                  duration: Duration(seconds: 2),
+          // Notification icon with badge
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                onPressed: _navigateToNotifications,
+              ),
+              if (_notificationCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.errorRed,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 20,
+                    ),
+                    child: Text(
+                      _notificationCount > 9 ? '9+' : '$_notificationCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 ),
-              );
-            },
+            ],
           ),
         ],
       ),
       
       body: RefreshIndicator(
-        onRefresh: _refreshData,
+        onRefresh: _loadDashboardData,
         color: AppTheme.primaryBrown,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -180,7 +317,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Welcome Back!',
+                  'Welcome Back Shahid!',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -222,7 +359,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Summary Section with Cards
+  /// Summary Section with Clickable Cards
   Widget _buildSummarySection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,70 +370,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(height: 16),
         
-        // Stock Summary Card
+        // Stock Summary Card (CLICKABLE)
         SummaryCard(
           title: 'Stock on Hand',
           value: _isLoading ? '...' : '$_stockItemsCount',
           subtitle: 'Total items in stock',
           icon: Icons.inventory_2,
           color: AppTheme.primaryBrown,
-          onTap: () {
-            // TODO: Navigate to stock screen (Phase 3)
-          },
+          onTap: _navigateToStock,
         ),
         
-        // Employees Summary Card
+        // Employees Summary Card (CLICKABLE)
         SummaryCard(
           title: 'Total Employees',
           value: _isLoading ? '...' : '$_employeesCount',
           subtitle: 'Registered staff members',
           icon: Icons.people,
           color: Colors.blue,
-          onTap: () {
-            // TODO: Navigate to employees screen (Phase 4)
-          },
+          onTap: _navigateToEmployees,
         ),
         
-        // Orders Summary Card
+        // Orders Summary Card (CLICKABLE)
         SummaryCard(
           title: 'Today\'s Bread',
           value: _isLoading ? '...' : '$_todayBreadQuantity',
           subtitle: 'Total bread quantity',
           icon: Icons.shopping_cart,
           color: AppTheme.secondaryOrange,
-          onTap: () {
-            // Navigate to orders screen
-          },
+          onTap: _navigateToOrders,
         ),
         
-        // Income Summary Card
+        // Income Summary Card (CLICKABLE)
         SummaryCard(
           title: 'Today\'s Income',
           value: _isLoading ? '...' : _currencyFormat.format(_todayIncome),
           subtitle: 'Total income today',
           icon: Icons.trending_up,
           color: AppTheme.successGreen,
-          onTap: () {
-            // TODO: Navigate to income screen (Phase 7)
-          },
+          onTap: _navigateToFinance,
         ),
         
-        // Expenses Summary Card
+        // Expenses Summary Card (CLICKABLE)
         SummaryCard(
           title: 'Today\'s Expenses',
           value: _isLoading ? '...' : _currencyFormat.format(_todayExpenses),
           subtitle: 'Total expenses today',
           icon: Icons.trending_down,
           color: AppTheme.errorRed,
-          onTap: () {
-            // TODO: Navigate to expenses screen (Phase 7)
-          },
+          onTap: _navigateToFinance,
         ),
       ],
     );
   }
 
-  /// Quick Actions Section
+  /// Quick Actions Section (ALL WORKING)
   Widget _buildQuickActionsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -319,77 +446,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _buildQuickActionButton(
               icon: Icons.add_shopping_cart,
               label: 'New Order',
-              onTap: () {
-                _showComingSoonMessage('New Order');
-              },
+              onTap: _showNewOrderScreen,
             ),
             _buildQuickActionButton(
               icon: Icons.inventory,
               label: 'Add Stock',
-              onTap: () {
-                _showComingSoonMessage('Add Stock');
-              },
+              onTap: _showAddStockDialog,
             ),
             _buildQuickActionButton(
               icon: Icons.person_add,
               label: 'Add Employee',
-              onTap: () {
-                _showComingSoonMessage('Add Employee');
-              },
+              onTap: _showAddEmployeeDialog,
             ),
             _buildQuickActionButton(
               icon: Icons.local_shipping,
               label: 'Add Vehicle',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const VehicleScreen(),
-                  ),
-                ).then((_) => _loadDashboardData()); // Refresh on return
-              },
+              onTap: _showAddVehicleScreen,
             ),
             _buildQuickActionButton(
               icon: Icons.attach_money,
               label: 'Record Income',
-              onTap: () async {
-                final result = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => const AddIncomeDialog(),
-                );
-                if (result == true) {
-                  _loadDashboardData();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Income recorded!'),
-                        backgroundColor: AppTheme.successGreen,
-                      ),
-                    );
-                  }
-                }
-              },
+              onTap: _showRecordIncomeDialog,
             ),
             _buildQuickActionButton(
               icon: Icons.money_off,
               label: 'Record Expense',
-              onTap: () async {
-                final result = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => const AddExpenseDialog(),
-                );
-                if (result == true) {
-                  _loadDashboardData();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Expense recorded!'),
-                        backgroundColor: AppTheme.errorRed,
-                      ),
-                    );
-                  }
-                }
-              },
+              onTap: _showRecordExpenseDialog,
             ),
           ],
         ),
@@ -438,28 +520,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Refresh Data Function
-  /// 
-  /// This will be called when user pulls down to refresh.
-  /// Fetches fresh data from the database.
-  Future<void> _refreshData() async {
-    await _loadDashboardData();
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Dashboard refreshed!'),
-          duration: Duration(seconds: 1),
-        ),
-      );
-    }
-  }
-
-  /// Show Coming Soon Message
-  void _showComingSoonMessage(String feature) {
+  /// Show success snackbar
+  void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$feature feature coming in next phases!'),
+        content: Text(message),
+        backgroundColor: AppTheme.successGreen,
         duration: const Duration(seconds: 2),
       ),
     );

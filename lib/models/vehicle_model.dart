@@ -2,6 +2,7 @@
 /// 
 /// Represents a vehicle in the bakery business.
 /// Vehicles can be assigned to employees with "Driver" role.
+library;
 
 class Vehicle {
   final int? id;

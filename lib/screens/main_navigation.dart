@@ -4,7 +4,6 @@ import 'package:a_one_bakeries_app/screens/stock_screen.dart';
 import 'package:a_one_bakeries_app/screens/employee_screen.dart';
 import 'package:a_one_bakeries_app/screens/orders_screen.dart';
 import 'package:a_one_bakeries_app/screens/finance_screen.dart';
-import 'package:a_one_bakeries_app/theme/app_theme.dart';
 
 /// Main Navigation Controller
 /// 

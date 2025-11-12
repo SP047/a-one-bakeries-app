@@ -62,7 +62,8 @@ class _AddEditStockDialogState extends State<AddEditStockDialog> {
         id: widget.stockItem?.id,
         name: _nameController.text.trim(),
         unit: _unitController.text.trim(),
-        quantityOnHand: double.parse(_quantityController.text.trim()),
+        // StockItem.quantityOnHand is an int in the model, so parse as double then convert to int
+        quantityOnHand: double.parse(_quantityController.text.trim()).toInt(),
         createdAt: widget.stockItem?.createdAt,
       );
 
