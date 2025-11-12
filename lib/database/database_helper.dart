@@ -412,6 +412,27 @@ await db.execute('CREATE INDEX idx_supplier_payments_supplierId ON supplier_paym
     return await db.insert('credit_transactions', transaction.toMap());
   }
 
+  /// Update credit transaction - NEW METHOD
+  Future<int> updateCreditTransaction(CreditTransaction transaction) async {
+  final db = await database;
+  return await db.update(
+    'credit_transactions',
+    transaction.toMap(),
+    where: 'id = ?',
+    whereArgs: [transaction.id],
+  );
+  } 
+
+  /// Delete credit transaction - NEW METHOD
+  Future<int> deleteCreditTransaction(int id) async {
+  final db = await database;
+  return await db.delete(
+    'credit_transactions',
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+  }
+
   Future<List<CreditTransaction>> getCreditTransactionsByEmployeeId(int employeeId) async {
     final db = await database;
     final maps = await db.query('credit_transactions', where: 'employeeId = ?', whereArgs: [employeeId], orderBy: 'createdAt DESC');

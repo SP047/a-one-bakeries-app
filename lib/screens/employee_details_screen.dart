@@ -5,6 +5,8 @@ import 'package:a_one_bakeries_app/database/database_helper.dart';
 import 'package:a_one_bakeries_app/services/photo_picker_service.dart';
 import 'package:a_one_bakeries_app/widgets/employee_photo_widget.dart';
 import 'package:a_one_bakeries_app/widgets/upload_document_dialog.dart';
+import 'package:a_one_bakeries_app/screens/pdf_viewer_screen.dart';
+import 'package:a_one_bakeries_app/widgets/edit_credit_transaction_dialog.dart';
 import 'dart:io';
 import 'package:intl/intl.dart';
 
@@ -543,54 +545,226 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
     );
   }
 
-  /// Build transaction card
-  Widget _buildTransactionCard(CreditTransaction transaction) {
-    final isBorrow = transaction.transactionType == 'BORROW';
-    final color = isBorrow ? AppTheme.errorRed : AppTheme.successGreen;
+  /// Build transaction card - UPDATED with edit/delete
+Widget _buildTransactionCard(CreditTransaction transaction) {
+  final isBorrow = transaction.transactionType == 'BORROW';
+  final color = isBorrow ? AppTheme.errorRed : AppTheme.successGreen;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  return Card(
+    margin: const EdgeInsets.only(bottom: 12),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    isBorrow ? Icons.add_circle : Icons.remove_circle,
+                    color: color,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isBorrow ? 'Borrowed' : 'Repaid',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Text(
+                    '${isBorrow ? '+' : '-'}${_currencyFormat.format(transaction.amount)}',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  // Edit/Delete Menu
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _editTransaction(transaction);
+                      } else if (value == 'delete') {
+                        _deleteTransaction(transaction);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit, size: 20),
+                            SizedBox(width: 8),
+                            Text('Edit'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete, size: 20, color: AppTheme.errorRed),
+                            SizedBox(width: 8),
+                            Text('Delete', style: TextStyle(color: AppTheme.errorRed)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            transaction.reason,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _dateFormat.format(transaction.createdAt),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.darkBrown.withOpacity(0.6),
+                ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Edit transaction - NEW METHOD
+Future<void> _editTransaction(CreditTransaction transaction) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (context) => EditCreditTransactionDialog(
+      transaction: transaction,
+    ),
+  );
+
+  if (result == true) {
+    _loadCreditData();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Transaction updated successfully!'),
+          backgroundColor: AppTheme.successGreen,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+}
+
+/// Delete transaction - NEW METHOD
+Future<void> _deleteTransaction(CreditTransaction transaction) async {
+  final isBorrow = transaction.transactionType == 'BORROW';
+  
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Delete Transaction'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Are you sure you want to delete this ${isBorrow ? 'borrowed' : 'repayment'} transaction?',
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.errorRed.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isBorrow ? 'Borrowed' : 'Repaid',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: color,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  'Amount: ${_currencyFormat.format(transaction.amount)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(height: 4),
+                Text('Reason: ${transaction.reason}'),
+                const SizedBox(height: 4),
                 Text(
-                  '${isBorrow ? '+' : '-'}${_currencyFormat.format(transaction.amount)}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: color,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  'Date: ${_dateFormat.format(transaction.createdAt)}',
+                  style: const TextStyle(fontSize: 12),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              transaction.reason,
-              style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.secondaryOrange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
             ),
-            const SizedBox(height: 8),
-            Text(
-              _dateFormat.format(transaction.createdAt),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.darkBrown.withOpacity(0.6),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, size: 16, color: AppTheme.secondaryOrange),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'This will update the credit balance',
+                    style: TextStyle(fontSize: 12),
                   ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.errorRed,
+          ),
+          child: const Text('Delete'),
+        ),
+      ],
+    ),
+  );
+
+  if (confirm == true) {
+    try {
+      await _dbHelper.deleteCreditTransaction(transaction.id!);
+      _loadCreditData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Transaction deleted successfully!'),
+            backgroundColor: AppTheme.successGreen,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting transaction: $e'),
+            backgroundColor: AppTheme.errorRed,
+          ),
+        );
+      }
+    }
   }
+}
 
   /// Build documents tab
   Widget _buildDocumentsTab() {
@@ -740,61 +914,93 @@ String _formatDocumentType(String type) {
   }
 }
 
-/// View document
-void _viewDocument(EmployeeDocument document) {
-  // We'll show the file path for now
-  // In a production app, you'd open the PDF viewer here
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Document Location'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'File: ${document.fileName}',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Path: ${document.filePath}',
-            style: const TextStyle(fontSize: 12),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppTheme.primaryBrown.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  size: 20,
-                  color: AppTheme.primaryBrown,
+void _viewDocument(EmployeeDocument document) async {
+  // Check if file exists
+  final file = File(document.filePath);
+  if (!await file.exists()) {
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('File Not Found'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'The document file could not be found. It may have been moved or deleted.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.errorRed.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Open this file using your device\'s PDF viewer',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'File: ${document.fileName}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Path: ${document.filePath}',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Close'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _deleteDocument(document);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.errorRed,
+              ),
+              child: const Text('Delete Record'),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
+    }
+    return;
+  }
+
+  // File exists - open PDF viewer
+  try {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PDFViewerScreen(
+          filePath: document.filePath,
+          fileName: document.fileName,
+        ),
+      ),
+    );
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error opening document: $e'),
+          backgroundColor: AppTheme.errorRed,
+        ),
+      );
+    }
+  }
 }
 
 /// Delete document
