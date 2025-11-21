@@ -2,7 +2,8 @@
 /// 
 /// Represents an employee in the bakery business.
 /// Stores personal info, role, and employment details.
-library;
+/// 
+/// NOTE: License info is stored SEPARATELY in the DriverLicense class!
 
 class Employee {
   final int? id;
@@ -46,9 +47,6 @@ class Employee {
 
   /// Check if employee has photo
   bool get hasPhoto => photoPath != null && photoPath!.isNotEmpty;
-  
-  /// Get photo file widget helper
-  /// Returns a widget showing the employee photo or default avatar
 
   /// Convert to Map for database
   Map<String, dynamic> toMap() {
@@ -221,4 +219,107 @@ class EmployeeRoles {
     supervisor,
     manager,
   ];
+}
+
+/// Driver License Model
+/// 
+/// Represents a driver's license information.
+/// This is stored in a SEPARATE table (driver_licenses), NOT in employees table!
+
+class DriverLicense {
+  final int? id;
+  final int employeeId;
+  final String licenseNumber;
+  final String licenseType;        // "Code 8", "Code 10", "Code 14"
+  final String? licenseTypes;      // Additional types: "A, B, C"
+  final DateTime issueDate;
+  final DateTime expiryDate;
+  final String? restrictions;      // e.g., "Glasses required"
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  DriverLicense({
+    this.id,
+    required this.employeeId,
+    required this.licenseNumber,
+    required this.licenseType,
+    this.licenseTypes,
+    required this.issueDate,
+    required this.expiryDate,
+    this.restrictions,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  })  : createdAt = createdAt ?? DateTime.now(),
+        updatedAt = updatedAt ?? DateTime.now();
+
+  /// Check if license is expired
+  bool get isExpired => expiryDate.isBefore(DateTime.now());
+
+  /// Check if license is expiring soon (within 90 days)
+  bool get isExpiringSoon {
+    final daysUntilExpiry = expiryDate.difference(DateTime.now()).inDays;
+    return daysUntilExpiry > 0 && daysUntilExpiry <= 90;
+  }
+
+  /// Get days until expiry
+  int get daysUntilExpiry => expiryDate.difference(DateTime.now()).inDays;
+
+  /// Convert to Map for database
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'employeeId': employeeId,
+      'licenseNumber': licenseNumber,
+      'licenseType': licenseType,
+      'licenseTypes': licenseTypes,
+      'issueDate': issueDate.toIso8601String(),
+      'expiryDate': expiryDate.toIso8601String(),
+      'restrictions': restrictions,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
+  /// Create from database Map
+  factory DriverLicense.fromMap(Map<String, dynamic> map) {
+    return DriverLicense(
+      id: map['id'] as int?,
+      employeeId: map['employeeId'] as int,
+      licenseNumber: map['licenseNumber'] as String,
+      licenseType: map['licenseType'] as String,
+      licenseTypes: map['licenseTypes'] as String?,
+      issueDate: DateTime.parse(map['issueDate'] as String),
+      expiryDate: DateTime.parse(map['expiryDate'] as String),
+      restrictions: map['restrictions'] as String?,
+      createdAt: DateTime.parse(map['createdAt'] as String),
+      updatedAt: DateTime.parse(map['updatedAt'] as String),
+    );
+  }
+
+  /// Create a copy with updated fields
+  DriverLicense copyWith({
+    int? id,
+    int? employeeId,
+    String? licenseNumber,
+    String? licenseType,
+    String? licenseTypes,
+    DateTime? issueDate,
+    DateTime? expiryDate,
+    String? restrictions,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return DriverLicense(
+      id: id ?? this.id,
+      employeeId: employeeId ?? this.employeeId,
+      licenseNumber: licenseNumber ?? this.licenseNumber,
+      licenseType: licenseType ?? this.licenseType,
+      licenseTypes: licenseTypes ?? this.licenseTypes,
+      issueDate: issueDate ?? this.issueDate,
+      expiryDate: expiryDate ?? this.expiryDate,
+      restrictions: restrictions ?? this.restrictions,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }

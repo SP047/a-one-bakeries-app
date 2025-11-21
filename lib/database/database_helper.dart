@@ -38,7 +38,7 @@ class DatabaseHelper {
     
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,  // <-- Add this
     );
@@ -46,7 +46,31 @@ class DatabaseHelper {
 
   Future<void> _onCreate(Database db, int version) async {
   Future<void> onUpgrade(Database db, int oldVersion, int newVersion) async {
-  if (oldVersion < 2) {
+  if (oldVersion < 3) {
+    await db.execute('ALTER TABLE employees ADD COLUMN licenseNumber TEXT');
+    await db.execute('ALTER TABLE employees ADD COLUMN licenseIssueDate TEXT');
+    await db.execute('ALTER TABLE employees ADD COLUMN licenseExpiryDate TEXT');
+
+    // 3. Update _onCreate to include license fields (around line 100)
+    // In the CREATE TABLE employees section, add the license fields:
+    await db.execute('''
+      CREATE TABLE employees(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      firstName TEXT NOT NULL,
+      lastName TEXT NOT NULL,
+      idNumber TEXT NOT NULL UNIQUE,
+      idType TEXT NOT NULL,
+      birthDate TEXT NOT NULL,
+      role TEXT NOT NULL,
+      photoPath TEXT,
+      licenseNumber TEXT,
+      licenseIssueDate TEXT,
+      licenseExpiryDate TEXT,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+      )
+''' );
+
     // Add supplier tables
     await db.execute('''
       CREATE TABLE suppliers(
@@ -756,4 +780,58 @@ Future<double> getSupplierBalance(int supplierId) async {
 
   FutureOr<void> _onUpgrade(Database db, int oldVersion, int newVersion) {
   }
+
+  // ==================== DRIVER LICENSE OPERATIONS ====================
+
+  Future<int> insertDriverLicense(DriverLicense license) async {
+    final db = await database;
+    return await db.insert('driver_licenses', license.toMap());
+  }
+
+  Future<int> updateDriverLicense(DriverLicense license) async {
+    final db = await database;
+    return await db.update(
+      'driver_licenses',
+      license.toMap(),
+      where: 'id = ?',
+      whereArgs: [license.id],
+    );
+  }
+
+  Future<int> deleteDriverLicense(int id) async {
+    final db = await database;
+    return await db.delete('driver_licenses', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<DriverLicense?> getDriverLicense(int employeeId) async {
+    final db = await database;
+    final maps = await db.query(
+      'driver_licenses',
+      where: 'employeeId = ?',
+      whereArgs: [employeeId],
+    );
+    if (maps.isEmpty) return null;
+    return DriverLicense.fromMap(maps.first);
+  }
+
+  Future<List<DriverLicense>> getAllDriverLicenses() async {
+    final db = await database;
+    final maps = await db.query('driver_licenses', orderBy: 'expiryDate ASC');
+    return List.generate(maps.length, (i) => DriverLicense.fromMap(maps[i]));
+  }
+
+  Future<List<DriverLicense>> getExpiringLicenses({int daysAhead = 90}) async {
+    final db = await database;
+    final today = DateTime.now();
+    final futureDate = today.add(Duration(days: daysAhead));
+    
+    final maps = await db.query(
+      'driver_licenses',
+      where: 'expiryDate BETWEEN ? AND ?',
+      whereArgs: [today.toIso8601String(), futureDate.toIso8601String()],
+      orderBy: 'expiryDate ASC',
+    );
+    return List.generate(maps.length, (i) => DriverLicense.fromMap(maps[i]));
+  }
+  
 }

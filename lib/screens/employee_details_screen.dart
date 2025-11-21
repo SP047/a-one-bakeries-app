@@ -7,6 +7,8 @@ import 'package:a_one_bakeries_app/widgets/employee_photo_widget.dart';
 import 'package:a_one_bakeries_app/widgets/upload_document_dialog.dart';
 import 'package:a_one_bakeries_app/screens/pdf_viewer_screen.dart';
 import 'package:a_one_bakeries_app/widgets/edit_credit_transaction_dialog.dart';
+import 'package:a_one_bakeries_app/widgets/driver_license_card.dart';
+import 'package:a_one_bakeries_app/widgets/add_edit_license_dialog.dart';
 import 'dart:io';
 import 'package:intl/intl.dart';
 
@@ -46,6 +48,10 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
   List<EmployeeDocument> _documents = [];
   bool _isLoadingDocuments = true;
 
+  // License data
+  DriverLicense? _driverLicense;
+  bool _isLoadingLicense = false;
+
   final DateFormat _dateFormat = DateFormat('dd MMM yyyy HH:mm');
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: 'R ');
 
@@ -53,9 +59,10 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
   void initState() {
     super.initState();
     _currentEmployee = widget.employee;
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _loadCreditData();
     _loadDocuments();
+    _loadDriverLicense();
   }
 
   @override
@@ -106,6 +113,122 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
       setState(() {
         _isLoadingDocuments = false;
       });
+    }
+  }
+
+  /// Load driver license
+  Future<void> _loadDriverLicense() async {
+    setState(() {
+      _isLoadingLicense = true;
+    });
+
+    try {
+      final license = await _dbHelper.getDriverLicense(_currentEmployee.id!);
+      setState(() {
+        _driverLicense = license;
+        _isLoadingLicense = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingLicense = false;
+      });
+    }
+  }
+
+  /// Show add license dialog
+  Future<void> _showAddLicenseDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AddEditLicenseDialog(
+        employeeId: _currentEmployee.id!,
+      ),
+    );
+
+    if (result == true) {
+      _loadDriverLicense();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('License added successfully!'),
+            backgroundColor: AppTheme.successGreen,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Show edit license dialog
+  Future<void> _showEditLicenseDialog() async {
+    if (_driverLicense == null) return;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AddEditLicenseDialog(
+        employeeId: _currentEmployee.id!,
+        license: _driverLicense,
+      ),
+    );
+
+    if (result == true) {
+      _loadDriverLicense();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('License updated successfully!'),
+            backgroundColor: AppTheme.successGreen,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Delete license
+  Future<void> _deleteLicense() async {
+    if (_driverLicense == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete License'),
+        content: const Text('Are you sure you want to delete this license?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.errorRed,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _dbHelper.deleteDriverLicense(_driverLicense!.id!);
+        _loadDriverLicense();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('License deleted successfully!'),
+              backgroundColor: AppTheme.successGreen,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting license: $e'),
+              backgroundColor: AppTheme.errorRed,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -305,6 +428,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
               Tab(text: 'Details'),
               Tab(text: 'Credit'),
               Tab(text: 'Documents'),
+              Tab(text: 'License'),
             ],
           ),
 
@@ -316,9 +440,238 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen>
                 _buildDetailsTab(),
                 _buildCreditTab(),
                 _buildDocumentsTab(),
+                _buildLicenseTab(),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Build license tab
+  Widget _buildLicenseTab() {
+    // Only show for drivers
+    if (_currentEmployee.role != EmployeeRoles.driver) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.info_outline,
+              size: 60,
+              color: AppTheme.darkBrown.withOpacity(0.3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'License management is only\navailable for drivers',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppTheme.darkBrown.withOpacity(0.5),
+                  ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        // Add License Button (if no license)
+        if (_driverLicense == null)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: ElevatedButton.icon(
+              onPressed: _showAddLicenseDialog,
+              icon: const Icon(Icons.add),
+              label: const Text('Add License'),
+            ),
+          ),
+
+        // License Card or Loading
+        Expanded(
+          child: _isLoadingLicense
+              ? const Center(child: CircularProgressIndicator())
+              : _driverLicense == null
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.badge_outlined,
+                            size: 80,
+                            color: AppTheme.darkBrown.withOpacity(0.3),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No license added yet',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyLarge
+                                ?.copyWith(
+                                  color: AppTheme.darkBrown.withOpacity(0.5),
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Tap "Add License" to get started',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: AppTheme.darkBrown.withOpacity(0.5),
+                                ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          // 3D License Card
+                          DriverLicenseCard(
+                            license: _driverLicense!,
+                            employee: _currentEmployee,
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Action Buttons
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _showEditLicenseDialog,
+                                  icon: const Icon(Icons.edit, size: 20),
+                                  label: const Text('Edit'),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _deleteLicense,
+                                  icon: const Icon(Icons.delete, size: 20),
+                                  label: const Text('Delete'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppTheme.errorRed,
+                                    side: const BorderSide(
+                                      color: AppTheme.errorRed,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // License Status Card
+                          _buildLicenseStatusCard(),
+                        ],
+                      ),
+                    ),
+        ),
+      ],
+    );
+  }
+
+  /// Build license status card
+  Widget _buildLicenseStatusCard() {
+    if (_driverLicense == null) return const SizedBox.shrink();
+
+    final daysUntilExpiry =
+        _driverLicense!.expiryDate.difference(DateTime.now()).inDays;
+    final isExpiring = daysUntilExpiry <= 90;
+    final isExpired = daysUntilExpiry < 0;
+
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+
+    if (isExpired) {
+      statusColor = AppTheme.errorRed;
+      statusIcon = Icons.dangerous;
+      statusText = 'EXPIRED';
+    } else if (isExpiring) {
+      statusColor = AppTheme.secondaryOrange;
+      statusIcon = Icons.warning;
+      statusText = 'EXPIRING SOON';
+    } else {
+      statusColor = AppTheme.successGreen;
+      statusIcon = Icons.check_circle;
+      statusText = 'VALID';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: statusColor.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(statusIcon, color: statusColor, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      statusText,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isExpired
+                          ? 'Expired ${daysUntilExpiry.abs()} days ago'
+                          : isExpiring
+                              ? 'Expires in $daysUntilExpiry days'
+                              : 'Valid for $daysUntilExpiry more days',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.darkBrown.withOpacity(0.7),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (isExpiring || isExpired) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: statusColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      isExpired
+                          ? 'This license has expired. Please renew it immediately.'
+                          : 'This license is expiring soon. Please renew it.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
