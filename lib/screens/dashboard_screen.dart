@@ -13,6 +13,8 @@ import 'package:a_one_bakeries_app/screens/orders_screen.dart';
 import 'package:a_one_bakeries_app/screens/finance_screen.dart';
 import 'package:a_one_bakeries_app/screens/create_order_screen.dart';
 import 'package:a_one_bakeries_app/screens/notifications_screen.dart';
+import 'package:a_one_bakeries_app/services/notification_service.dart';
+import 'package:a_one_bakeries_app/widgets/license_expiry_alert.dart';
 import 'package:intl/intl.dart';
 
 /// Dashboard Screen
@@ -38,8 +40,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _todayBreadQuantity = 0;
   double _todayIncome = 0.0;
   double _todayExpenses = 0.0;
-  int _notificationCount = 3; // Mock notification count
+  int _notificationCount = 0; // Mock notification count
   bool _isLoading = true;
+  // License expiry stats
+  LicenseExpiryStats? _licenseStats;
+  final NotificationService _notificationService = NotificationService();
 
   @override
   void initState() {
@@ -59,6 +64,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final breadQty = await _dbHelper.getTodayBreadQuantity();
       final todayIncome = await _dbHelper.getTodayIncome();
       final todayExpenses = await _dbHelper.getTodayExpenses();
+      // Load license expiry stats
+      final licenseStats = await _notificationService.getLicenseExpiryStats();
+      final notificationCount = await _notificationService.getCriticalNotificationCount();
 
       setState(() {
         _stockItemsCount = stockItems.length;
@@ -66,6 +74,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _todayBreadQuantity = breadQty;
         _todayIncome = todayIncome;
         _todayExpenses = todayExpenses;
+        _licenseStats = licenseStats;
+        _notificationCount = notificationCount;
         _isLoading = false;
       });
     } catch (e) {
@@ -251,7 +261,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 // Welcome Section
                 _buildWelcomeSection(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+
+                // License Expiry Alert (NEW!)
+                if (_licenseStats != null && _licenseStats!.hasAlerts)
+                  LicenseExpiryAlert(
+                    stats: _licenseStats!,
+                    onTap: _navigateToNotifications,
+                  ),
                 
                 // Date Display
                 _buildDateSection(),

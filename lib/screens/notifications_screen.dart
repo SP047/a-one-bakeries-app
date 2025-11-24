@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:a_one_bakeries_app/theme/app_theme.dart';
+import 'package:a_one_bakeries_app/services/notification_service.dart';
+import 'package:a_one_bakeries_app/screens/employee_details_screen.dart';
+import 'package:a_one_bakeries_app/database/database_helper.dart';
 import 'package:intl/intl.dart';
 
-/// Notifications Screen
+/// ============================================================================
+/// NOTIFICATIONS SCREEN - COMPLETE VERSION
+/// ============================================================================
 /// 
-/// Displays system notifications like low stock alerts,
-/// pending tasks, upcoming expiry dates, etc.
+/// Displays real notifications from the app:
+/// - Expiring driver licenses (90, 60, 30 days)
+/// - Expired driver licenses
+/// - Beautiful color-coded severity system
+/// - Direct navigation to employee details
+/// ============================================================================
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -15,35 +24,52 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final DateFormat _dateFormat = DateFormat('dd MMM yyyy, HH:mm');
+  final NotificationService _notificationService = NotificationService();
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final DateFormat _dateFormat = DateFormat('dd MMM yyyy');
 
-  // Mock notifications (you can replace with real data from database later)
-  final List<NotificationItem> _notifications = [
-    NotificationItem(
-      id: 1,
-      type: 'info',
-      title: 'Welcome to A-One Bakeries!',
-      message: 'Your business management app is ready to use.',
-      timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-      isRead: false,
-    ),
-    NotificationItem(
-      id: 2,
-      type: 'success',
-      title: 'Order Completed',
-      message: 'Driver John completed delivery for 5 trollies of bread.',
-      timestamp: DateTime.now().subtract(const Duration(hours: 5)),
-      isRead: false,
-    ),
-    NotificationItem(
-      id: 3,
-      type: 'warning',
-      title: 'Low Stock Alert',
-      message: 'Flour stock is running low. Consider restocking soon.',
-      timestamp: DateTime.now().subtract(const Duration(days: 1)),
-      isRead: false,
-    ),
-  ];
+  List<NotificationItem> _notifications = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+  }
+
+  /// Load all notifications
+  Future<void> _loadNotifications() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final notifications = await _notificationService.getAllNotifications();
+      setState(() {
+        _notifications = notifications;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  /// Navigate to employee details
+  Future<void> _navigateToEmployee(int? employeeId) async {
+    if (employeeId == null) return;
+
+    final employee = await _dbHelper.getEmployeeById(employeeId);
+    if (employee != null && mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => EmployeeDetailsScreen(employee: employee),
+        ),
+      ).then((_) => _loadNotifications()); // Refresh on return
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,117 +78,238 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
-          // Mark all as read button
-          if (_notifications.any((n) => !n.isRead))
-            TextButton(
-              onPressed: _markAllAsRead,
-              child: const Text(
-                'Mark all read',
-                style: TextStyle(color: Colors.white),
+          if (_notifications.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    '${_notifications.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
             ),
         ],
       ),
-      body: _notifications.isEmpty
-          ? _buildEmptyState()
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _notifications.length,
-              itemBuilder: (context, index) {
-                return _buildNotificationCard(_notifications[index]);
-              },
-            ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _notifications.isEmpty
+              ? _buildEmptyState()
+              : RefreshIndicator(
+                  onRefresh: _loadNotifications,
+                  color: AppTheme.primaryBrown,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _notifications.length,
+                    itemBuilder: (context, index) {
+                      return _buildNotificationCard(_notifications[index]);
+                    },
+                  ),
+                ),
     );
   }
 
   /// Build notification card
   Widget _buildNotificationCard(NotificationItem notification) {
-    IconData icon;
-    Color color;
-
-    switch (notification.type) {
-      case 'success':
-        icon = Icons.check_circle;
-        color = AppTheme.successGreen;
-        break;
-      case 'warning':
-        icon = Icons.warning;
-        color = AppTheme.secondaryOrange;
-        break;
-      case 'error':
-        icon = Icons.error;
-        color = AppTheme.errorRed;
-        break;
-      default:
-        icon = Icons.info;
-        color = Colors.blue;
-    }
+    final colors = _getNotificationColors(notification.severity);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      color: notification.isRead ? null : AppTheme.lightCream,
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.1),
-          child: Icon(icon, color: color),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: colors['border']!,
+          width: 1,
         ),
-        title: Text(
-          notification.title,
-          style: TextStyle(
-            fontWeight: notification.isRead ? FontWeight.normal : FontWeight.bold,
+      ),
+      child: InkWell(
+        onTap: notification.employeeId != null
+            ? () => _navigateToEmployee(notification.employeeId)
+            : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Row
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Icon
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: colors['background'],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      _getNotificationIcon(notification),
+                      color: colors['icon'],
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Content
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Title
+                        Text(
+                          notification.title,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: colors['text'],
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+
+                        // Message
+                        Text(
+                          notification.message,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: AppTheme.darkBrown.withOpacity(0.8),
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              // Footer
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Category Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors['background'],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _getCategoryIcon(notification.category),
+                          size: 14,
+                          color: colors['icon'],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _getCategoryLabel(notification.category),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: colors['icon'],
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Days indicator
+                  if (notification.daysUntilExpiry != 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors['icon']!.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        notification.daysUntilExpiry < 0
+                            ? '${notification.daysUntilExpiry.abs()} days overdue'
+                            : '${notification.daysUntilExpiry} days left',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors['icon'],
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                ],
+              ),
+
+              // View Details Button
+              if (notification.employeeId != null) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _navigateToEmployee(notification.employeeId),
+                    icon: const Icon(Icons.person, size: 18),
+                    label: Text('View ${notification.employeeName ?? "Employee"}'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colors['icon'],
+                      side: BorderSide(color: colors['icon']!),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(notification.message),
-            const SizedBox(height: 8),
-            Text(
-              _dateFormat.format(notification.timestamp),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.darkBrown.withOpacity(0.5),
-                  ),
-            ),
-          ],
-        ),
-        isThreeLine: true,
-        trailing: !notification.isRead
-            ? Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                  color: AppTheme.primaryBrown,
-                  shape: BoxShape.circle,
-                ),
-              )
-            : null,
-        onTap: () => _markAsRead(notification),
       ),
     );
   }
 
-  /// Build empty state
+  /// Build empty state (All clear!)
   Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.notifications_none,
-            size: 80,
-            color: AppTheme.darkBrown.withOpacity(0.3),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppTheme.successGreen.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.check_circle,
+              size: 80,
+              color: AppTheme.successGreen,
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Text(
-            'No notifications',
+            'All Clear! 🎉',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: AppTheme.darkBrown.withOpacity(0.5),
+                  color: AppTheme.successGreen,
+                  fontWeight: FontWeight.bold,
                 ),
           ),
           const SizedBox(height: 8),
           Text(
-            'You\'re all caught up!',
+            'No pending notifications',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: AppTheme.darkBrown.withOpacity(0.5),
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'All licenses are up to date',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppTheme.darkBrown.withOpacity(0.5),
                 ),
@@ -172,45 +319,73 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  /// Mark notification as read
-  void _markAsRead(NotificationItem notification) {
-    setState(() {
-      notification.isRead = true;
-    });
+  /// Get colors based on severity
+  Map<String, Color> _getNotificationColors(NotificationSeverity severity) {
+    switch (severity) {
+      case NotificationSeverity.critical:
+        return {
+          'background': Colors.red.shade50,
+          'border': Colors.red.shade200,
+          'icon': Colors.red.shade700,
+          'text': Colors.red.shade800,
+        };
+      case NotificationSeverity.high:
+        return {
+          'background': Colors.orange.shade50,
+          'border': Colors.orange.shade200,
+          'icon': Colors.orange.shade700,
+          'text': Colors.orange.shade800,
+        };
+      case NotificationSeverity.medium:
+        return {
+          'background': Colors.amber.shade50,
+          'border': Colors.amber.shade200,
+          'icon': Colors.amber.shade700,
+          'text': Colors.amber.shade800,
+        };
+      case NotificationSeverity.low:
+        return {
+          'background': Colors.blue.shade50,
+          'border': Colors.blue.shade200,
+          'icon': Colors.blue.shade700,
+          'text': Colors.blue.shade800,
+        };
+    }
   }
 
-  /// Mark all notifications as read
-  void _markAllAsRead() {
-    setState(() {
-      for (var notification in _notifications) {
-        notification.isRead = true;
-      }
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('All notifications marked as read'),
-        backgroundColor: AppTheme.successGreen,
-        duration: Duration(seconds: 2),
-      ),
-    );
+  /// Get icon based on notification type
+  IconData _getNotificationIcon(NotificationItem notification) {
+    if (notification.type == 'expired') {
+      return Icons.error;
+    } else if (notification.type == 'expiring_soon') {
+      return Icons.warning;
+    } else if (notification.type == 'expiring') {
+      return Icons.schedule;
+    }
+    return Icons.info;
   }
-}
 
-/// Notification Item Model
-class NotificationItem {
-  final int id;
-  final String type; // 'info', 'success', 'warning', 'error'
-  final String title;
-  final String message;
-  final DateTime timestamp;
-  bool isRead;
+  /// Get category icon
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'license':
+        return Icons.badge;
+      case 'vehicle_disk':
+        return Icons.directions_car;
+      default:
+        return Icons.notifications;
+    }
+  }
 
-  NotificationItem({
-    required this.id,
-    required this.type,
-    required this.title,
-    required this.message,
-    required this.timestamp,
-    this.isRead = false,
-  });
+  /// Get category label
+  String _getCategoryLabel(String category) {
+    switch (category) {
+      case 'license':
+        return 'Driver License';
+      case 'vehicle_disk':
+        return 'Vehicle Disk';
+      default:
+        return 'Alert';
+    }
+  }
 }
