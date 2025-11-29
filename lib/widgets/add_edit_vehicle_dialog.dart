@@ -28,6 +28,10 @@ class _AddEditVehicleDialogState extends State<AddEditVehicleDialog> {
   late TextEditingController _modelController;
   late TextEditingController _yearController;
   late TextEditingController _registrationController;
+  late TextEditingController _diskNumberController;
+
+  DateTime? _licenseDiskExpiry;
+  DateTime? _lastRenewalDate;
 
   bool _isSaving = false;
 
@@ -41,6 +45,12 @@ class _AddEditVehicleDialogState extends State<AddEditVehicleDialog> {
         TextEditingController(text: widget.vehicle?.year.toString() ?? '');
     _registrationController =
         TextEditingController(text: widget.vehicle?.registrationNumber ?? '');
+    _diskNumberController =
+        TextEditingController(text: widget.vehicle?.diskNumber ?? '');
+    
+    // Initialize date fields
+    _licenseDiskExpiry = widget.vehicle?.licenseDiskExpiry;
+    _lastRenewalDate = widget.vehicle?.lastRenewalDate;
   }
 
   @override
@@ -49,6 +59,7 @@ class _AddEditVehicleDialogState extends State<AddEditVehicleDialog> {
     _modelController.dispose();
     _yearController.dispose();
     _registrationController.dispose();
+    _diskNumberController.dispose();
     super.dispose();
   }
 
@@ -69,6 +80,11 @@ class _AddEditVehicleDialogState extends State<AddEditVehicleDialog> {
         registrationNumber: _registrationController.text.trim().toUpperCase(),
         assignedDriverId: widget.vehicle?.assignedDriverId,
         assignedDriverName: widget.vehicle?.assignedDriverName,
+        licenseDiskExpiry: _licenseDiskExpiry,
+        lastRenewalDate: _lastRenewalDate,
+        diskNumber: _diskNumberController.text.trim().isEmpty 
+            ? null 
+            : _diskNumberController.text.trim(),
         createdAt: widget.vehicle?.createdAt,
       );
 
@@ -187,6 +203,113 @@ class _AddEditVehicleDialogState extends State<AddEditVehicleDialog> {
                   }
                   return null;
                 },
+              ),
+              const SizedBox(height: 24),
+
+              // License Disk Section Header
+              Row(
+                children: [
+                  const Icon(Icons.credit_card, size: 20, color: AppTheme.secondaryOrange),
+                  const SizedBox(width: 8),
+                  Text(
+                    'License Disk Information',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.darkBrown,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // License Disk Expiry Date
+              InkWell(
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: _licenseDiskExpiry ?? DateTime.now().add(const Duration(days: 365)),
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime.now().add(const Duration(days: 3650)),
+                  );
+                  if (date != null) {
+                    setState(() {
+                      _licenseDiskExpiry = date;
+                    });
+                  }
+                },
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'License Disk Expiry Date',
+                    prefixIcon: Icon(Icons.event),
+                    suffixIcon: Icon(Icons.calendar_today, size: 20),
+                  ),
+                  child: Text(
+                    _licenseDiskExpiry != null
+                        ? '${_licenseDiskExpiry!.day}/${_licenseDiskExpiry!.month}/${_licenseDiskExpiry!.year}'
+                        : 'Tap to select date (optional)',
+                    style: TextStyle(
+                      color: _licenseDiskExpiry != null 
+                          ? AppTheme.darkBrown 
+                          : AppTheme.darkBrown.withOpacity(0.5),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Last Renewal Date
+              InkWell(
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: _lastRenewalDate ?? DateTime.now(),
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime.now(),
+                  );
+                  if (date != null) {
+                    setState(() {
+                      _lastRenewalDate = date;
+                    });
+                  }
+                },
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Last Renewal Date (Optional)',
+                    prefixIcon: const Icon(Icons.history),
+                    suffixIcon: _lastRenewalDate != null
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 20),
+                            onPressed: () {
+                              setState(() {
+                                _lastRenewalDate = null;
+                              });
+                            },
+                          )
+                        : const Icon(Icons.calendar_today, size: 20),
+                  ),
+                  child: Text(
+                    _lastRenewalDate != null
+                        ? '${_lastRenewalDate!.day}/${_lastRenewalDate!.month}/${_lastRenewalDate!.year}'
+                        : 'Tap to select date',
+                    style: TextStyle(
+                      color: _lastRenewalDate != null 
+                          ? AppTheme.darkBrown 
+                          : AppTheme.darkBrown.withOpacity(0.5),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Disk Number Field
+              TextFormField(
+                controller: _diskNumberController,
+                decoration: const InputDecoration(
+                  labelText: 'Disk Number (Optional)',
+                  hintText: 'e.g., D123456',
+                  prefixIcon: Icon(Icons.confirmation_number),
+                ),
+                textCapitalization: TextCapitalization.characters,
               ),
               const SizedBox(height: 16),
 

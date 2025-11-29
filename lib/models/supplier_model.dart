@@ -1,8 +1,20 @@
-/// Supplier Model
-/// 
-/// Represents a supplier in the system.
-/// Tracks supplier info and account balance.
+/// ------------------------------------------------------------
+/// SUPPLIER MODELS
+/// ------------------------------------------------------------
+/// Contains all supplier-related models:
+///   • Supplier
+///   • SupplierInvoice
+///   • SupplierPayment
+///   • PaymentMethods (constants)
+/// ------------------------------------------------------------
 library;
+
+/// ===============================
+/// SUPPLIER MODEL
+/// ===============================
+/// Represents a supplier and their contact information.
+/// Tracks creation/update timestamps for record changes.
+/// -------------------------------
 
 class Supplier {
   final int? id;
@@ -26,7 +38,7 @@ class Supplier {
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
-  /// Convert to Map for database
+  /// Convert Supplier to a Map for storing in database.
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -40,7 +52,7 @@ class Supplier {
     };
   }
 
-  /// Create from database Map
+  /// Create Supplier from database Map.
   factory Supplier.fromMap(Map<String, dynamic> map) {
     return Supplier(
       id: map['id'] as int?,
@@ -54,7 +66,7 @@ class Supplier {
     );
   }
 
-  /// Create a copy with updated fields
+  /// Return a new instance with updated fields.
   Supplier copyWith({
     int? id,
     String? name,
@@ -78,9 +90,15 @@ class Supplier {
   }
 }
 
-/// Supplier Invoice Model
-/// 
-/// Represents an invoice from a supplier.
+/// ===============================
+/// SUPPLIER INVOICE MODEL
+/// ===============================
+/// Represents a supplier invoice:
+///   • Includes invoice number
+///   • Amount due
+///   • Optional due date
+///   • Optional notes
+/// -------------------------------
 
 class SupplierInvoice {
   final int? id;
@@ -105,7 +123,7 @@ class SupplierInvoice {
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  /// Convert to Map for database
+  /// Convert invoice to Map for persistence.
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -120,7 +138,7 @@ class SupplierInvoice {
     };
   }
 
-  /// Create from database Map
+  /// Create invoice from persisted Map.
   factory SupplierInvoice.fromMap(Map<String, dynamic> map) {
     return SupplierInvoice(
       id: map['id'] as int?,
@@ -129,8 +147,8 @@ class SupplierInvoice {
       invoiceNumber: map['invoiceNumber'] as String,
       amount: map['amount'] as double,
       invoiceDate: DateTime.parse(map['invoiceDate'] as String),
-      dueDate: map['dueDate'] != null 
-          ? DateTime.parse(map['dueDate'] as String) 
+      dueDate: map['dueDate'] != null
+          ? DateTime.parse(map['dueDate'] as String)
           : null,
       notes: map['notes'] as String?,
       createdAt: DateTime.parse(map['createdAt'] as String),
@@ -138,18 +156,26 @@ class SupplierInvoice {
   }
 }
 
-/// Supplier Payment Model
-/// 
-/// Represents a payment made to a supplier.
+/// ===============================
+/// SUPPLIER PAYMENT MODEL
+/// ===============================
+/// Represents payments made to suppliers.
+/// Supports multiple payment types:
+///   • CASH
+///   • EFT
+///   • CHEQUE
+///
+/// Also stores notes & references.
+/// -------------------------------
 
 class SupplierPayment {
   final int? id;
   final int supplierId;
   final String supplierName;
   final double amount;
-  final String paymentMethod;  // "CASH", "EFT", "CHEQUE"
-  final String? reference;
-  final String? notes;
+  final String paymentMethod;     // "CASH", "EFT", "CHEQUE"
+  final String? reference;        // Optional reference number
+  final String? notes;            // Optional notes
   final DateTime paymentDate;
   final DateTime createdAt;
 
@@ -165,7 +191,7 @@ class SupplierPayment {
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  /// Convert to Map for database
+  /// Convert payment to Map.
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -180,7 +206,7 @@ class SupplierPayment {
     };
   }
 
-  /// Create from database Map
+  /// Create payment from Map.
   factory SupplierPayment.fromMap(Map<String, dynamic> map) {
     return SupplierPayment(
       id: map['id'] as int?,
@@ -196,7 +222,10 @@ class SupplierPayment {
   }
 }
 
-/// Payment Method Constants
+/// ===============================
+/// PAYMENT METHOD CONSTANTS
+/// ===============================
+
 class PaymentMethods {
   static const String cash = 'CASH';
   static const String eft = 'EFT';
@@ -208,5 +237,6 @@ class PaymentMethods {
     cheque,
   ];
 
-  static Null card() => null;
+  static Null card() => null; // Placeholder if card is added later
 }
+/// ============================================================================

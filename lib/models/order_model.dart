@@ -1,16 +1,39 @@
-/// Order Model
-/// 
-/// Represents a production/delivery order for a driver or vehicle.
-/// Tracks quantities only (no pricing).
+/// ============================================================================
+/// ORDER MODELS
+///
+/// Contains data models for production/delivery orders:
+///   • Order      – Represents a delivery order assigned to a driver or vehicle.
+///   • OrderItem  – Represents individual line items (bread/biscuits quantities).
+///
+/// These models track QUANTITY ONLY — no pricing logic is included.
+/// ============================================================================
+
 library;
 
+/// ============================================================================
+/// ORDER MODEL
+/// ----------------------------------------------------------------------------
+/// Represents a full delivery/production order.
+/// An order can belong to either:
+///   • A driver   (driverId + driverName)
+///   • A vehicle  (vehicleId + vehicleInfo)
+///
+/// Fields:
+///   • totalQuantity – Combined quantity of all order items.
+///   • createdAt     – Timestamp for logging and sorting.
+/// ============================================================================
 class Order {
   final int? id;
-  final int? driverId;           // Foreign key to Employee (nullable)
-  final String? driverName;      // Driver name for display
-  final int? vehicleId;          // Foreign key to Vehicle (nullable)
-  final String? vehicleInfo;     // Vehicle info for display
-  final int totalQuantity;       // Total quantity of all items
+
+  // Driver-related fields (nullable)
+  final int? driverId;            // FK → Employee table
+  final String? driverName;       // Display name for driver
+
+  // Vehicle-related fields (nullable)
+  final int? vehicleId;           // FK → Vehicle table
+  final String? vehicleInfo;      // Display info for vehicle
+
+  final int totalQuantity;        // Total quantity of all OrderItem entries
   final DateTime createdAt;
 
   Order({
@@ -23,18 +46,28 @@ class Order {
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  /// Check if order is for driver or vehicle
+  // ---------------------------------------------------------------------------
+  // FLAGS
+  // ---------------------------------------------------------------------------
+
+  /// True if assigned to a driver.
   bool get isDriverOrder => driverId != null;
+
+  /// True if assigned to a vehicle.
   bool get isVehicleOrder => vehicleId != null;
 
-  /// Get display name (driver or vehicle)
+  /// Display name for UI (driver first, fallback to vehicle).
   String get displayName {
     if (driverName != null) return driverName!;
     if (vehicleInfo != null) return vehicleInfo!;
     return 'Unknown';
   }
 
-  /// Convert to Map for database
+  // ---------------------------------------------------------------------------
+  // SERIALIZATION
+  // ---------------------------------------------------------------------------
+
+  /// Convert this Order into a Map for database storage.
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -47,7 +80,7 @@ class Order {
     };
   }
 
-  /// Create from database Map
+  /// Create an Order from a database Map.
   factory Order.fromMap(Map<String, dynamic> map) {
     return Order(
       id: map['id'] as int?,
@@ -60,7 +93,11 @@ class Order {
     );
   }
 
-  /// Create a copy with updated fields
+  // ---------------------------------------------------------------------------
+  // COPY
+  // ---------------------------------------------------------------------------
+
+  /// Create a new Order with updated fields.
   Order copyWith({
     int? id,
     int? driverId,
@@ -82,17 +119,26 @@ class Order {
   }
 }
 
-/// Order Item Model
-/// 
-/// Represents individual line items in an order.
-/// Tracks quantities only (no pricing).
-
+/// ============================================================================
+/// ORDER ITEM MODEL
+/// ----------------------------------------------------------------------------
+/// Represents an individual line item inside an Order.
+///
+/// Supported item types:
+///   • "Brown Bread"
+///   • "White Bread"
+///   • "Bucket Biscuits"
+///
+/// QUANTITY RULES:
+///   • Bread (Brown/White) → quantity = trollies × 180
+///   • Bucket Biscuits     → quantity = trolliesOrQty (1–20 direct)
+/// ============================================================================
 class OrderItem {
   final int? id;
-  final int orderId;             // Foreign key to Order
-  final String itemType;         // "Brown Bread", "White Bread", "Bucket Biscuits"
-  final int trolliesOrQty;       // Trollies for bread, direct quantity for biscuits
-  final int quantity;            // Calculated quantity
+  final int orderId;              // FK → Order
+  final String itemType;          // e.g. Brown Bread / White Bread / Bucket Biscuits
+  final int trolliesOrQty;        // Trollies for bread, direct quantity for biscuits
+  final int quantity;             // Calculated quantity
 
   OrderItem({
     this.id,
@@ -102,19 +148,27 @@ class OrderItem {
     required this.quantity,
   });
 
-  /// Calculate quantity based on item type
-  /// Brown/White Bread: trollies × 180
-  /// Bucket Biscuits: direct quantity (1-20)
+  // ---------------------------------------------------------------------------
+  // QUANTITY CALCULATION
+  // ---------------------------------------------------------------------------
+
+  /// Calculate quantity based on product type and value.
+  ///
+  /// Bread = trollies × 180  
+  /// Biscuits = direct quantity
   static int calculateQuantity(String itemType, int trolliesOrQty) {
     if (itemType == 'Bucket Biscuits') {
-      return trolliesOrQty; // Direct quantity
-    } else {
-      // Brown Bread or White Bread
-      return trolliesOrQty * 180;
+      return trolliesOrQty;
     }
+    // Default logic for Brown & White Bread
+    return trolliesOrQty * 180;
   }
 
-  /// Create a copy with updated fields
+  // ---------------------------------------------------------------------------
+  // COPY
+  // ---------------------------------------------------------------------------
+
+  /// Create a modified copy of the OrderItem.
   OrderItem copyWith({
     int? id,
     int? orderId,
@@ -131,7 +185,11 @@ class OrderItem {
     );
   }
 
-  /// Convert to Map for database
+  // ---------------------------------------------------------------------------
+  // SERIALIZATION
+  // ---------------------------------------------------------------------------
+
+  /// Convert this OrderItem into a Map for database storage.
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -142,7 +200,7 @@ class OrderItem {
     };
   }
 
-  /// Create from database Map
+  /// Create an OrderItem from a database Map.
   factory OrderItem.fromMap(Map<String, dynamic> map) {
     return OrderItem(
       id: map['id'] as int?,
@@ -154,7 +212,11 @@ class OrderItem {
   }
 }
 
-/// Order Item Types Constants
+/// ============================================================================
+/// ORDER ITEM TYPES (CONSTANTS)
+/// ----------------------------------------------------------------------------
+/// Centralized string constants used across the app.
+/// ============================================================================
 class OrderItemTypes {
   static const String brownBread = 'Brown Bread';
   static const String whiteBread = 'White Bread';

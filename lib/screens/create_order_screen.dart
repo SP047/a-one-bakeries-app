@@ -5,11 +5,12 @@ import 'package:a_one_bakeries_app/models/employee_model.dart';
 import 'package:a_one_bakeries_app/models/vehicle_model.dart';
 import 'package:a_one_bakeries_app/database/database_helper.dart';
 
-/// Create Order Screen
-/// 
-/// Screen to create a new order for a driver or vehicle.
+/// ============================================================================
+/// CREATE ORDER SCREEN
+/// ----------------------------------------------------------------------------
+/// Screen for creating or editing an order for a driver or vehicle.
 /// Tracks quantities only (no pricing).
-
+/// ============================================================================
 class CreateOrderScreen extends StatefulWidget {
   final Order? existingOrder;
   final List<OrderItem>? existingItems;
@@ -24,43 +25,57 @@ class CreateOrderScreen extends StatefulWidget {
   State<CreateOrderScreen> createState() => _CreateOrderScreenState();
 }
 
+/// ============================================================================
+/// STATE: CREATE ORDER SCREEN
+/// ============================================================================
 class _CreateOrderScreenState extends State<CreateOrderScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
   final _formKey = GlobalKey<FormState>();
-  
-  // Order assignment
+
+  // --------------------------------------------------------------------------
+  // Order Assignment
+  // --------------------------------------------------------------------------
   String _orderType = 'DRIVER';
   Employee? _selectedDriver;
   Vehicle? _selectedVehicle;
-  
   List<Employee> _drivers = [];
   List<Vehicle> _vehicles = [];
-  
-  // Order items (table rows)
+
+  // --------------------------------------------------------------------------
+  // Order Items
+  // --------------------------------------------------------------------------
   List<OrderItemRow> _orderItems = [OrderItemRow()];
-  
+
+  // --------------------------------------------------------------------------
+  // Loading & Saving Flags
+  // --------------------------------------------------------------------------
   bool _isLoading = false;
   bool _isSaving = false;
 
+  // ========================================================================
+  // INIT STATE
+  // ========================================================================
   @override
   void initState() {
     super.initState();
     _loadDriversAndVehicles();
-    
-    // If editing, load existing data
+
+    // Load existing order if editing
     if (widget.existingOrder != null && widget.existingItems != null) {
       _loadExistingOrder();
     }
   }
 
-  /// Load existing order for editing
+  // ========================================================================
+  // LOAD EXISTING ORDER (FOR EDITING)
+  // ========================================================================
   void _loadExistingOrder() {
     final order = widget.existingOrder!;
-    
+
     setState(() {
       _orderType = order.isDriverOrder ? 'DRIVER' : 'VEHICLE';
-      
-      // Load items
+
+      // Load existing items into OrderItemRows
       _orderItems = widget.existingItems!.map((item) {
         return OrderItemRow(
           itemType: item.itemType,
@@ -70,11 +85,11 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     });
   }
 
-  /// Load drivers and vehicles
+  // ========================================================================
+  // LOAD DRIVERS & VEHICLES
+  // ========================================================================
   Future<void> _loadDriversAndVehicles() async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final drivers = await _dbHelper.getEmployeesByRole(EmployeeRoles.driver);
@@ -83,8 +98,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       setState(() {
         _drivers = drivers;
         _vehicles = vehicles;
-        
-        // If editing, set selected driver/vehicle
+
+        // Set selected driver/vehicle if editing
         if (widget.existingOrder != null) {
           if (widget.existingOrder!.driverId != null) {
             _selectedDriver = drivers.firstWhere(
@@ -99,48 +114,42 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
             );
           }
         }
-        
+
         _isLoading = false;
       });
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
-  /// Add new row to order items
+  // ========================================================================
+  // ORDER ITEMS MANAGEMENT
+  // ========================================================================
   void _addRow() {
-    setState(() {
-      _orderItems.add(OrderItemRow());
-    });
+    setState(() => _orderItems.add(OrderItemRow()));
   }
 
-  /// Remove row from order items
   void _removeRow(int index) {
     if (_orderItems.length > 1) {
-      setState(() {
-        _orderItems.removeAt(index);
-      });
+      setState(() => _orderItems.removeAt(index));
     }
   }
 
-  /// Calculate total quantity
   int _calculateTotalQuantity() {
     int total = 0;
     for (var item in _orderItems) {
-      if (item.isValid) {
-        total += item.quantity;
-      }
+      if (item.isValid) total += item.quantity;
     }
     return total;
   }
 
-  /// Validate and save order
+  // ========================================================================
+  // SAVE ORDER TO DATABASE
+  // ========================================================================
   Future<void> _saveOrder() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Validate order assignment
+    // Validate assignment
     if (_orderType == 'DRIVER' && _selectedDriver == null) {
       _showErrorSnackBar('Please select a driver');
       return;
@@ -150,18 +159,16 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       return;
     }
 
-    // Validate order items
+    // Validate items
     if (_orderItems.where((item) => item.isValid).isEmpty) {
       _showErrorSnackBar('Please add at least one valid item');
       return;
     }
 
-    setState(() {
-      _isSaving = true;
-    });
+    setState(() => _isSaving = true);
 
     try {
-      // Create order
+      // Create order object
       final order = Order(
         id: widget.existingOrder?.id,
         driverId: _orderType == 'DRIVER' ? _selectedDriver!.id : null,
@@ -172,7 +179,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         createdAt: widget.existingOrder?.createdAt,
       );
 
-      // Create order items
+      // Convert OrderItemRows to OrderItems
       final items = _orderItems
           .where((item) => item.isValid)
           .map((item) => OrderItem(
@@ -183,7 +190,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
               ))
           .toList();
 
-      // Save to database
+      // Insert or update
       if (widget.existingOrder == null) {
         await _dbHelper.insertOrder(order, items);
       } else {
@@ -194,32 +201,29 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(widget.existingOrder == null 
-                ? 'Order created successfully!' 
+            content: Text(widget.existingOrder == null
+                ? 'Order created successfully!'
                 : 'Order updated successfully!'),
             backgroundColor: AppTheme.successGreen,
           ),
         );
       }
     } catch (e) {
-      setState(() {
-        _isSaving = false;
-      });
-      if (mounted) {
-        _showErrorSnackBar('Error saving order: $e');
-      }
+      setState(() => _isSaving = false);
+      if (mounted) _showErrorSnackBar('Error saving order: $e');
     }
   }
 
+  // ========================================================================
+  // BUILD METHOD
+  // ========================================================================
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.existingOrder != null;
-    
+
     return Scaffold(
       backgroundColor: AppTheme.creamBackground,
-      appBar: AppBar(
-        title: Text(isEditing ? 'Edit Order' : 'Create Order'),
-      ),
+      appBar: AppBar(title: Text(isEditing ? 'Edit Order' : 'Create Order')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Form(
@@ -232,26 +236,17 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Order Type Selection
                           _buildOrderTypeSelection(),
                           const SizedBox(height: 24),
-
-                          // Driver/Vehicle Selection
                           _buildAssignmentSelection(),
                           const SizedBox(height: 24),
-
-                          // Order Items Section
                           _buildOrderItemsSection(),
                           const SizedBox(height: 24),
-
-                          // Total Quantity
                           _buildTotalSection(),
                         ],
                       ),
                     ),
                   ),
-
-                  // Save Button
                   _buildBottomBar(),
                 ],
               ),
@@ -259,7 +254,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     );
   }
 
-  /// Build order type selection
+  // ========================================================================
+  // UI COMPONENTS
+  // ========================================================================
   Widget _buildOrderTypeSelection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -309,7 +306,6 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     );
   }
 
-  /// Build assignment selection
   Widget _buildAssignmentSelection() {
     if (_orderType == 'DRIVER') {
       return DropdownButtonFormField<Employee>(
@@ -324,15 +320,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                   child: Text(driver.fullName),
                 ))
             .toList(),
-        onChanged: (value) {
-          setState(() {
-            _selectedDriver = value;
-          });
-        },
-        validator: (value) {
-          if (value == null) return 'Please select a driver';
-          return null;
-        },
+        onChanged: (value) => setState(() => _selectedDriver = value),
+        validator: (value) => value == null ? 'Please select a driver' : null,
       );
     } else {
       return DropdownButtonFormField<Vehicle>(
@@ -347,20 +336,12 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                   child: Text('${vehicle.fullName} - ${vehicle.registrationNumber}'),
                 ))
             .toList(),
-        onChanged: (value) {
-          setState(() {
-            _selectedVehicle = value;
-          });
-        },
-        validator: (value) {
-          if (value == null) return 'Please select a vehicle';
-          return null;
-        },
+        onChanged: (value) => setState(() => _selectedVehicle = value),
+        validator: (value) => value == null ? 'Please select a vehicle' : null,
       );
     }
   }
 
-  /// Build order items section (the table)
   Widget _buildOrderItemsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -382,21 +363,16 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
           ],
         ),
         const SizedBox(height: 16),
-
-        // Order items list
         ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: _orderItems.length,
-          itemBuilder: (context, index) {
-            return _buildOrderItemRow(index);
-          },
+          itemBuilder: (context, index) => _buildOrderItemRow(index),
         ),
       ],
     );
   }
 
-  /// Build single order item row
   Widget _buildOrderItemRow(int index) {
     final item = _orderItems[index];
     final isBiscuits = item.itemType == OrderItemTypes.bucketBiscuits;
@@ -407,7 +383,6 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            // Row header with delete button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -426,30 +401,20 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
               ],
             ),
             const SizedBox(height: 12),
-
-            // Item Type Dropdown
             DropdownButtonFormField<String>(
               initialValue: item.itemType,
-              decoration: const InputDecoration(
-                labelText: 'Item',
-                isDense: true,
-              ),
+              decoration: const InputDecoration(labelText: 'Item', isDense: true),
               items: OrderItemTypes.allTypes
-                  .map((type) => DropdownMenuItem(
-                        value: type,
-                        child: Text(type),
-                      ))
+                  .map((type) => DropdownMenuItem(value: type, child: Text(type)))
                   .toList(),
               onChanged: (value) {
                 setState(() {
                   item.itemType = value;
-                  item.trolliesOrQty = null; // Reset when type changes
+                  item.trolliesOrQty = null;
                 });
               },
             ),
             const SizedBox(height: 12),
-
-            // Trollies (for Bread) or Quantity (for Biscuits) Dropdown
             DropdownButtonFormField<int>(
               initialValue: item.trolliesOrQty,
               decoration: InputDecoration(
@@ -457,21 +422,12 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                 isDense: true,
               ),
               items: List.generate(isBiscuits ? 20 : 10, (i) => i + 1)
-                  .map((num) => DropdownMenuItem(
-                        value: num,
-                        child: Text(num.toString()),
-                      ))
+                  .map((num) => DropdownMenuItem(value: num, child: Text(num.toString())))
                   .toList(),
-              onChanged: (value) {
-                setState(() {
-                  item.trolliesOrQty = value;
-                });
-              },
+              onChanged: (value) => setState(() => item.trolliesOrQty = value),
             ),
             const SizedBox(height: 12),
-
-            // Quantity Display
-            if (item.isValid) ...[
+            if (item.isValid)
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -483,28 +439,24 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                   children: [
                     Text(
                       'QUANTITY:',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     Text(
                       item.quantity.toString(),
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: AppTheme.primaryBrown,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(color: AppTheme.primaryBrown, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
               ),
-            ],
           ],
         ),
       ),
     );
   }
 
-  /// Build total section
   Widget _buildTotalSection() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -517,92 +469,71 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         children: [
           Text(
             'Total Quantity:',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           Text(
             _calculateTotalQuantity().toString(),
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(context)
+                .textTheme
+                .displaySmall
+                ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ],
       ),
     );
   }
 
-  /// Build bottom bar with save button
   Widget _buildBottomBar() {
     final isEditing = widget.existingOrder != null;
-    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, -2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, -2))],
       ),
       child: SafeArea(
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton(
             onPressed: _isSaving ? null : _saveOrder,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
+            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
             child: _isSaving
                 ? const SizedBox(
                     height: 20,
                     width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
                   )
-                : Text(
-                    isEditing ? 'Update Order' : 'Create Order',
-                    style: const TextStyle(fontSize: 18),
-                  ),
+                : Text(isEditing ? 'Update Order' : 'Create Order', style: const TextStyle(fontSize: 18)),
           ),
         ),
       ),
     );
   }
 
-  /// Show error snackbar
+  // ========================================================================
+  // HELPER: ERROR SNACKBAR
+  // ========================================================================
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppTheme.errorRed,
-        duration: const Duration(seconds: 3),
-      ),
+      SnackBar(content: Text(message), backgroundColor: AppTheme.errorRed, duration: const Duration(seconds: 3)),
     );
   }
 }
 
-/// Order Item Row Helper Class
+/// ============================================================================
+/// ORDER ITEM ROW HELPER CLASS
+/// ============================================================================
 class OrderItemRow {
   String? itemType;
   int? trolliesOrQty;
 
-  OrderItemRow({
-    this.itemType,
-    this.trolliesOrQty,
-  });
+  OrderItemRow({this.itemType, this.trolliesOrQty});
 
   bool get isValid => itemType != null && trolliesOrQty != null;
 
-  int get quantity {
-    if (!isValid) return 0;
-    return OrderItem.calculateQuantity(itemType!, trolliesOrQty!);
-  }
+  int get quantity => isValid ? OrderItem.calculateQuantity(itemType!, trolliesOrQty!) : 0;
 }

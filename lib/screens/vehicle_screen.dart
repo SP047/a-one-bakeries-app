@@ -4,6 +4,9 @@ import 'package:a_one_bakeries_app/models/vehicle_model.dart';
 import 'package:a_one_bakeries_app/models/employee_model.dart';
 import 'package:a_one_bakeries_app/database/database_helper.dart';
 import 'package:a_one_bakeries_app/widgets/add_edit_vehicle_dialog.dart';
+import 'package:a_one_bakeries_app/widgets/add_km_record_dialog.dart';
+import 'package:a_one_bakeries_app/widgets/add_service_record_dialog.dart';
+import 'package:a_one_bakeries_app/screens/vehicle_disk_dashboard_screen.dart';
 
 /// Vehicle Screen
 /// 
@@ -23,7 +26,12 @@ class _VehicleScreenState extends State<VehicleScreen> {
   List<Vehicle> _vehicles = [];
   List<Vehicle> _filteredVehicles = [];
   bool _isLoading = true;
-  String _filterStatus = 'ALL'; // ALL, ASSIGNED, UNASSIGNED
+  String _filterStatus = 'ALL'; // ALL, ASSIGNED, UNASSIGNED, EXPIRED, CRITICAL, WARNING, NO_DATA
+  
+  // Disk status counts
+  int _expiredCount = 0;
+  int _criticalCount = 0;
+  int _warningCount = 0;
 
   @override
   void initState() {
@@ -39,8 +47,33 @@ class _VehicleScreenState extends State<VehicleScreen> {
 
     try {
       final vehicles = await _dbHelper.getAllVehicles();
+      
+      // Calculate disk status counts
+      int expired = 0;
+      int critical = 0;
+      int warning = 0;
+      
+      for (var vehicle in vehicles) {
+        switch (vehicle.diskStatus) {
+          case DiskStatus.expired:
+            expired++;
+            break;
+          case DiskStatus.critical:
+            critical++;
+            break;
+          case DiskStatus.warning:
+            warning++;
+            break;
+          default:
+            break;
+        }
+      }
+      
       setState(() {
         _vehicles = vehicles;
+        _expiredCount = expired;
+        _criticalCount = critical;
+        _warningCount = warning;
         _applyFilters();
         _isLoading = false;
       });
@@ -58,10 +91,21 @@ class _VehicleScreenState extends State<VehicleScreen> {
   void _applyFilters() {
     List<Vehicle> filtered = _vehicles;
 
+    // Apply assignment filters
     if (_filterStatus == 'ASSIGNED') {
       filtered = filtered.where((v) => v.isAssigned).toList();
     } else if (_filterStatus == 'UNASSIGNED') {
       filtered = filtered.where((v) => !v.isAssigned).toList();
+    }
+    // Apply disk status filters
+    else if (_filterStatus == 'EXPIRED') {
+      filtered = filtered.where((v) => v.diskStatus == DiskStatus.expired).toList();
+    } else if (_filterStatus == 'CRITICAL') {
+      filtered = filtered.where((v) => v.diskStatus == DiskStatus.critical).toList();
+    } else if (_filterStatus == 'WARNING') {
+      filtered = filtered.where((v) => v.diskStatus == DiskStatus.warning).toList();
+    } else if (_filterStatus == 'NO_DATA') {
+      filtered = filtered.where((v) => v.diskStatus == DiskStatus.noData).toList();
     }
 
     setState(() {
@@ -270,15 +314,75 @@ class _VehicleScreenState extends State<VehicleScreen> {
     }
   }
 
+
+  /// Show KM record dialog
+  Future<void> _showKmRecordDialog(Vehicle vehicle) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AddKmRecordDialog(vehicle: vehicle),
+    );
+    
+    if (result == true) {
+      _loadVehicles();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('KM record saved successfully'),
+            backgroundColor: AppTheme.successGreen,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Show service record dialog
+  Future<void> _showServiceRecordDialog(Vehicle vehicle) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AddServiceRecordDialog(vehicle: vehicle),
+    );
+    
+    if (result == true) {
+      _loadVehicles();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Service record saved successfully'),
+            backgroundColor: AppTheme.successGreen,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.creamBackground,
       appBar: AppBar(
         title: const Text('Vehicles'),
+        actions: [
+          // License Disk Dashboard Button
+          IconButton(
+            icon: const Icon(Icons.credit_card),
+            tooltip: 'License Disk Dashboard',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const VehicleDiskDashboardScreen(),
+                ),
+              ).then((_) => _loadVehicles());
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
+          // Alert Banner for Expired/Critical Vehicles
+          if (_expiredCount > 0 || _criticalCount > 0)
+            _buildAlertBanner(),
+          
           // Filter Chips
           _buildFilterChips(),
 
@@ -325,34 +429,128 @@ class _VehicleScreenState extends State<VehicleScreen> {
     );
   }
 
-  /// Build filter chips
-  Widget _buildFilterChips() {
+  /// Build alert banner for expired/critical vehicles
+  Widget _buildAlertBanner() {
     return Container(
+      margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _expiredCount > 0 ? AppTheme.errorRed : AppTheme.secondaryOrange,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Row(
         children: [
-          Text(
-            'Filter: ',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+          Icon(
+            _expiredCount > 0 ? Icons.error : Icons.warning,
+            color: Colors.white,
+            size: 28,
           ),
-          const SizedBox(width: 8),
-          _buildFilterChip('ALL', 'All'),
-          const SizedBox(width: 8),
-          _buildFilterChip('ASSIGNED', 'Assigned'),
-          const SizedBox(width: 8),
-          _buildFilterChip('UNASSIGNED', 'Unassigned'),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _expiredCount > 0 
+                      ? 'License Disk Alert!'
+                      : 'Renewal Reminder',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _expiredCount > 0
+                      ? '$_expiredCount vehicle${_expiredCount > 1 ? 's have' : ' has'} expired disk${_expiredCount > 1 ? 's' : ''}'
+                      : '$_criticalCount vehicle${_criticalCount > 1 ? 's' : ''} expiring within 30 days',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.arrow_forward, color: Colors.white),
+            onPressed: () {
+              setState(() {
+                _filterStatus = _expiredCount > 0 ? 'EXPIRED' : 'CRITICAL';
+                _applyFilters();
+              });
+            },
+          ),
         ],
       ),
     );
   }
 
+  /// Build filter chips
+  Widget _buildFilterChips() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            Text(
+              'Filter: ',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(width: 8),
+            _buildFilterChip('ALL', 'All'),
+            const SizedBox(width: 8),
+            _buildFilterChip('ASSIGNED', 'Assigned'),
+            const SizedBox(width: 8),
+            _buildFilterChip('UNASSIGNED', 'Unassigned'),
+            const SizedBox(width: 8),
+            _buildFilterChip('EXPIRED', 'Expired', color: AppTheme.errorRed, count: _expiredCount),
+            const SizedBox(width: 8),
+            _buildFilterChip('CRITICAL', 'Critical', color: AppTheme.secondaryOrange, count: _criticalCount),
+            const SizedBox(width: 8),
+            _buildFilterChip('WARNING', 'Warning', color: Colors.amber, count: _warningCount),
+            const SizedBox(width: 8),
+            _buildFilterChip('NO_DATA', 'No Data', color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// Build single filter chip
-  Widget _buildFilterChip(String value, String label) {
+  Widget _buildFilterChip(String value, String label, {Color? color, int? count}) {
     final isSelected = _filterStatus == value;
+    final chipColor = color ?? AppTheme.primaryBrown;
+    
     return FilterChip(
-      label: Text(label),
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label),
+          if (count != null && count > 0) ...[
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.white : chipColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                count.toString(),
+                style: TextStyle(
+                  color: isSelected ? chipColor : Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
       selected: isSelected,
       onSelected: (selected) {
         setState(() {
@@ -360,7 +558,7 @@ class _VehicleScreenState extends State<VehicleScreen> {
           _applyFilters();
         });
       },
-      selectedColor: AppTheme.primaryBrown,
+      selectedColor: chipColor,
       checkmarkColor: Colors.white,
       labelStyle: TextStyle(
         color: isSelected ? Colors.white : AppTheme.darkBrown,
@@ -371,6 +569,10 @@ class _VehicleScreenState extends State<VehicleScreen> {
 
   /// Build vehicle card
   Widget _buildVehicleCard(Vehicle vehicle) {
+    final diskStatus = vehicle.diskStatus;
+    final daysUntil = vehicle.daysUntilDiskExpiry;
+    final hasDiskData = vehicle.licenseDiskExpiry != null;
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -401,12 +603,49 @@ class _VehicleScreenState extends State<VehicleScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        vehicle.fullName,
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              vehicle.fullName,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                          ),
+                          // Disk Status Badge
+                          if (hasDiskData)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: diskStatus.color,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    diskStatus.icon,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    daysUntil < 0
+                                        ? '${daysUntil.abs()}d ago'
+                                        : daysUntil == 0
+                                            ? 'Today'
+                                            : '${daysUntil}d',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -415,6 +654,61 @@ class _VehicleScreenState extends State<VehicleScreen> {
                               color: AppTheme.secondaryOrange,
                               fontWeight: FontWeight.w600,
                             ),
+                      ),
+                      // Disk Expiry Date
+                      if (hasDiskData) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.credit_card,
+                              size: 14,
+                              color: diskStatus.color,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Expires: ${vehicle.licenseDiskExpiry!.day}/${vehicle.licenseDiskExpiry!.month}/${vehicle.licenseDiskExpiry!.year}',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: diskStatus.color,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      // KM and Service Status
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.speed,
+                            size: 14,
+                            color: AppTheme.darkBrown.withOpacity(0.7),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'KM: ${vehicle.currentKm}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(
+                            vehicle.serviceStatus.icon,
+                            size: 14,
+                            color: vehicle.serviceStatus.color,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            vehicle.isServiceDue 
+                                ? 'Service Due!'
+                                : '${vehicle.kmUntilService} km to service',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: vehicle.serviceStatus.color,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -425,6 +719,10 @@ class _VehicleScreenState extends State<VehicleScreen> {
                   onSelected: (value) {
                     if (value == 'edit') {
                       _showEditVehicleDialog(vehicle);
+                    } else if (value == 'record_km') {
+                      _showKmRecordDialog(vehicle);
+                    } else if (value == 'record_service') {
+                      _showServiceRecordDialog(vehicle);
                     } else if (value == 'delete') {
                       _deleteVehicle(vehicle);
                     }
@@ -437,6 +735,26 @@ class _VehicleScreenState extends State<VehicleScreen> {
                           Icon(Icons.edit, size: 20),
                           SizedBox(width: 8),
                           Text('Edit'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'record_km',
+                      child: Row(
+                        children: [
+                          Icon(Icons.speed, size: 20),
+                          SizedBox(width: 8),
+                          Text('Record KM'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'record_service',
+                      child: Row(
+                        children: [
+                          Icon(Icons.build, size: 20),
+                          SizedBox(width: 8),
+                          Text('Record Service'),
                         ],
                       ),
                     ),

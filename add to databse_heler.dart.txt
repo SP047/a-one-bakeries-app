@@ -1,0 +1,182 @@
+/// DATABASE HELPER - VERSION 5 UPGRADE
+/// 
+/// This shows ONLY the changes needed for version 5.
+/// Add these to your existing database_helper.dart file.
+
+// ============================================================================
+// STEP 1: Update database version in _initDatabase method
+// ============================================================================
+
+Future<Database> _initDatabase() async {
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+  
+  String path = join(await getDatabasesPath(), 'a_one_bakeries.db');
+  
+  return await openDatabase(
+    path,
+    version: 5,  // ← CHANGED FROM 4 TO 5
+    onCreate: _onCreate,
+    onUpgrade: _onUpgrade,
+  );
+}
+
+// ============================================================================
+// STEP 2: Update _onUpgrade method to handle v5
+// ============================================================================
+
+Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+  // Existing v4 upgrade code...
+  if (oldVersion < 4) {
+    // ... existing v4 migration code stays here ...
+  }
+  
+  // NEW: Version 5 upgrade - Add vehicle license disk fields
+  if (oldVersion < 5) {
+    await db.execute('ALTER TABLE vehicles ADD COLUMN licenseDiskExpiry TEXT');
+    await db.execute('ALTER TABLE vehicles ADD COLUMN lastRenewalDate TEXT');
+    await db.execute('ALTER TABLE vehicles ADD COLUMN diskNumber TEXT');
+    
+    print('✅ Database upgraded to v5: Vehicle license disk fields added');
+  }
+}
+
+// ============================================================================
+// STEP 3: Update _onCreate to include new fields (for fresh installs)
+// ============================================================================
+
+// In the CREATE TABLE vehicles section of _onCreate, update to:
+
+await db.execute('''
+  CREATE TABLE vehicles(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    make TEXT NOT NULL,
+    model TEXT NOT NULL,
+    year INTEGER NOT NULL,
+    registrationNumber TEXT NOT NULL UNIQUE,
+    assignedDriverId INTEGER,
+    assignedDriverName TEXT,
+    licenseDiskExpiry TEXT,      -- NEW
+    lastRenewalDate TEXT,         -- NEW
+    diskNumber TEXT,              -- NEW
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    FOREIGN KEY (assignedDriverId) REFERENCES employees(id) ON DELETE SET NULL
+  )
+''');
+
+// ============================================================================
+// STEP 4: Add new query methods for vehicle disk tracking
+// ============================================================================
+
+/// Get vehicles with expiring disks (within specified days)
+Future<List<Vehicle>> getExpiringVehicleDisks({int daysAhead = 90}) async {
+  final db = await database;
+  final today = DateTime.now();
+  final futureDate = today.add(Duration(days: daysAhead));
+  
+  final maps = await db.query(
+    'vehicles',
+    where: 'licenseDiskExpiry IS NOT NULL AND licenseDiskExpiry BETWEEN ? AND ?',
+    whereArgs: [today.toIso8601String(), futureDate.toIso8601String()],
+    orderBy: 'licenseDiskExpiry ASC',
+  );
+  
+  return List.generate(maps.length, (i) => Vehicle.fromMap(maps[i]));
+}
+
+/// Get expired vehicle disks
+Future<List<Vehicle>> getExpiredVehicleDisks() async {
+  final db = await database;
+  final today = DateTime.now();
+  
+  final maps = await db.query(
+    'vehicles',
+    where: 'licenseDiskExpiry IS NOT NULL AND licenseDiskExpiry < ?',
+    whereArgs: [today.toIso8601String()],
+    orderBy: 'licenseDiskExpiry ASC',
+  );
+  
+  return List.generate(maps.length, (i) => Vehicle.fromMap(maps[i]));
+}
+
+/// Get all vehicles with disk data
+Future<List<Vehicle>> getVehiclesWithDiskData() async {
+  final db = await database;
+  
+  final maps = await db.query(
+    'vehicles',
+    where: 'licenseDiskExpiry IS NOT NULL',
+    orderBy: 'licenseDiskExpiry ASC',
+  );
+  
+  return List.generate(maps.length, (i) => Vehicle.fromMap(maps[i]));
+}
+
+/// Get vehicles without disk data (need to add expiry date)
+Future<List<Vehicle>> getVehiclesWithoutDiskData() async {
+  final db = await database;
+  
+  final maps = await db.query(
+    'vehicles',
+    where: 'licenseDiskExpiry IS NULL',
+    orderBy: 'make ASC, model ASC',
+  );
+  
+  return List.generate(maps.length, (i) => Vehicle.fromMap(maps[i]));
+}
+
+/// Update vehicle disk information
+Future<int> updateVehicleDisk({
+  required int vehicleId,
+  required DateTime expiryDate,
+  DateTime? renewalDate,
+  String? diskNumber,
+}) async {
+  final db = await database;
+  
+  return await db.update(
+    'vehicles',
+    {
+      'licenseDiskExpiry': expiryDate.toIso8601String(),
+      'lastRenewalDate': renewalDate?.toIso8601String(),
+      'diskNumber': diskNumber,
+      'updatedAt': DateTime.now().toIso8601String(),
+    },
+    where: 'id = ?',
+    whereArgs: [vehicleId],
+  );
+}
+
+// ============================================================================
+// TESTING QUERY - Use this to verify the upgrade worked
+// ============================================================================
+
+/// Test method to verify v5 upgrade
+Future<void> testV5Upgrade() async {
+  final db = await database;
+  
+  // Check if new columns exist
+  final result = await db.rawQuery('PRAGMA table_info(vehicles)');
+  
+  print('📋 Vehicles table columns:');
+  for (var column in result) {
+    print('  - ${column['name']}');
+  }
+  
+  // Check for our new columns
+  final hasExpiry = result.any((col) => col['name'] == 'licenseDiskExpiry');
+  final hasRenewal = result.any((col) => col['name'] == 'lastRenewalDate');
+  final hasDiskNum = result.any((col) => col['name'] == 'diskNumber');
+  
+  if (hasExpiry && hasRenewal && hasDiskNum) {
+    print('✅ All v5 columns present!');
+  } else {
+    print('❌ Missing v5 columns!');
+    print('  licenseDiskExpiry: ${hasExpiry ? "✅" : "❌"}');
+    print('  lastRenewalDate: ${hasRenewal ? "✅" : "❌"}');
+    print('  diskNumber: ${hasDiskNum ? "✅" : "❌"}');
+  }
+}

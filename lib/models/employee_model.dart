@@ -1,22 +1,48 @@
-/// Employee Model
-/// 
-/// Represents an employee in the bakery business.
-/// Stores personal info, role, and employment details.
-/// 
-/// NOTE: License info is stored SEPARATELY in the DriverLicense class!
+// ===============================================================
+// EMPLOYEE MANAGEMENT MODELS
+// ---------------------------------------------------------------
+// This file contains the following models used for employee
+// management in the bakery business:
+// 
+// 1. Employee                - Core employee data
+// 2. CreditTransaction       - Employee borrow/repayment tracking
+// 3. EmployeeDocument        - Uploaded employee documents
+// 4. EmployeeRoles           - String constants for employee roles
+// 5. DriverLicense           - Separate model for driver licenses
+// 
+// NOTE:
+// - Driver license info is stored in a SEPARATE table.
+// - No logic has been changed—only restructuring + comments.
+// ===============================================================
+
+
+
+// ===============================================================
+// 1. EMPLOYEE MODEL
+// ---------------------------------------------------------------
+// Represents a bakery employee, storing identification,
+// personal info, roles, and photo data.
+// ===============================================================
 
 class Employee {
+  // -------------------------
+  // FIELDS
+  // -------------------------
   final int? id;
   final String firstName;
   final String lastName;
-  final String idNumber;           // SA ID or Passport number
-  final String idType;             // "ID" or "PASSPORT"
+  final String idNumber;    // SA ID or Passport Number
+  final String idType;      // "ID" or "PASSPORT"
   final DateTime birthDate;
-  final String role;               // Baker, Driver, General Worker, Supervisor, Manager
-  final String? photoPath;         // Path to employee photo (local file path)
+  final String role;        // Baker, Driver, General Worker, etc.
+  final String? photoPath;  // Local file path to employee photo
+
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  // -------------------------
+  // CONSTRUCTOR
+  // -------------------------
   Employee({
     this.id,
     required this.firstName,
@@ -31,13 +57,19 @@ class Employee {
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
-  /// Get full name
+  // -------------------------
+  // COMPUTED FIELDS
+  // -------------------------
+
+  /// Full name of employee (First + Last)
   String get fullName => '$firstName $lastName';
 
-  /// Calculate age
+  /// Computes age based on birth year
   int get age {
     final now = DateTime.now();
     int age = now.year - birthDate.year;
+
+    // Adjust age if birthday hasn't occurred yet this year
     if (now.month < birthDate.month ||
         (now.month == birthDate.month && now.day < birthDate.day)) {
       age--;
@@ -45,10 +77,14 @@ class Employee {
     return age;
   }
 
-  /// Check if employee has photo
+  /// Returns true if employee has a stored photo
   bool get hasPhoto => photoPath != null && photoPath!.isNotEmpty;
 
-  /// Convert to Map for database
+  // -------------------------
+  // SERIALIZATION
+  // -------------------------
+
+  /// Convert Employee object → Map (for DB storage)
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -64,7 +100,7 @@ class Employee {
     };
   }
 
-  /// Create from database Map
+  /// Create Employee object ← Map (from DB)
   factory Employee.fromMap(Map<String, dynamic> map) {
     return Employee(
       id: map['id'] as int?,
@@ -80,7 +116,11 @@ class Employee {
     );
   }
 
-  /// Create a copy with updated fields
+  // -------------------------
+  // COPY WITH
+  // -------------------------
+
+  /// Creates a new Employee with updated fields
   Employee copyWith({
     int? id,
     String? firstName,
@@ -108,19 +148,29 @@ class Employee {
   }
 }
 
-/// Credit Transaction Model
-/// 
-/// Tracks money borrowed by employees and repayments.
+
+
+// ===============================================================
+// 2. CREDIT TRANSACTION MODEL
+// ---------------------------------------------------------------
+// Tracks employee loans (BORROW), repayments (REPAY), and reasons.
+// ===============================================================
 
 class CreditTransaction {
+  // -------------------------
+  // FIELDS
+  // -------------------------
   final int? id;
   final int employeeId;
   final String employeeName;
-  final String transactionType;    // "BORROW" or "REPAY"
+  final String transactionType;   // "BORROW" or "REPAY"
   final double amount;
   final String reason;
   final DateTime createdAt;
 
+  // -------------------------
+  // CONSTRUCTOR
+  // -------------------------
   CreditTransaction({
     this.id,
     required this.employeeId,
@@ -131,7 +181,11 @@ class CreditTransaction {
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  /// Convert to Map for database
+  // -------------------------
+  // SERIALIZATION
+  // -------------------------
+
+  /// Convert object → Map
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -144,7 +198,7 @@ class CreditTransaction {
     };
   }
 
-  /// Create from database Map
+  /// Create object ← Map
   factory CreditTransaction.fromMap(Map<String, dynamic> map) {
     return CreditTransaction(
       id: map['id'] as int?,
@@ -158,18 +212,29 @@ class CreditTransaction {
   }
 }
 
-/// Employee Document Model
-/// 
-/// Tracks documents uploaded for employees (contracts, payslips, disciplinary records).
+
+
+// ===============================================================
+// 3. EMPLOYEE DOCUMENT MODEL
+// ---------------------------------------------------------------
+// Stores uploaded employee files such as contracts, payslips,
+// and disciplinary documents.
+// ===============================================================
 
 class EmployeeDocument {
+  // -------------------------
+  // FIELDS
+  // -------------------------
   final int? id;
   final int employeeId;
-  final String documentType;       // "CONTRACT", "PAYSLIP", "DISCIPLINARY"
+  final String documentType;   // CONTRACT, PAYSLIP, DISCIPLINARY
   final String fileName;
   final String filePath;
   final DateTime uploadedAt;
 
+  // -------------------------
+  // CONSTRUCTOR
+  // -------------------------
   EmployeeDocument({
     this.id,
     required this.employeeId,
@@ -179,7 +244,10 @@ class EmployeeDocument {
     DateTime? uploadedAt,
   }) : uploadedAt = uploadedAt ?? DateTime.now();
 
-  /// Convert to Map for database
+  // -------------------------
+  // SERIALIZATION
+  // -------------------------
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -191,7 +259,6 @@ class EmployeeDocument {
     };
   }
 
-  /// Create from database Map
   factory EmployeeDocument.fromMap(Map<String, dynamic> map) {
     return EmployeeDocument(
       id: map['id'] as int?,
@@ -204,7 +271,14 @@ class EmployeeDocument {
   }
 }
 
-/// Employee Roles Constants
+
+
+// ===============================================================
+// 4. EMPLOYEE ROLE CONSTANTS
+// ---------------------------------------------------------------
+// Central location for defining all employee role labels.
+// ===============================================================
+
 class EmployeeRoles {
   static const String baker = 'Baker';
   static const String driver = 'Driver';
@@ -212,6 +286,7 @@ class EmployeeRoles {
   static const String supervisor = 'Supervisor';
   static const String manager = 'Manager';
 
+  /// List of all selectable roles
   static const List<String> allRoles = [
     baker,
     driver,
@@ -221,23 +296,33 @@ class EmployeeRoles {
   ];
 }
 
-/// Driver License Model
-/// 
-/// Represents a driver's license information.
-/// This is stored in a SEPARATE table (driver_licenses), NOT in employees table!
+
+
+// ===============================================================
+// 5. DRIVER LICENSE MODEL
+// ---------------------------------------------------------------
+// Stores driver licensing information. Stored separately from
+// employees in its own table (driver_licenses).
+// ===============================================================
 
 class DriverLicense {
+  // -------------------------
+  // FIELDS
+  // -------------------------
   final int? id;
   final int employeeId;
   final String licenseNumber;
-  final String licenseType;        // "Code 8", "Code 10", "Code 14"
-  final String? licenseTypes;      // Additional types: "A, B, C"
+  final String licenseType;     // Code 8 / Code 10 / Code 14
+  final String? licenseTypes;   // Additional types (A, B, C)
   final DateTime issueDate;
   final DateTime expiryDate;
-  final String? restrictions;      // e.g., "Glasses required"
+  final String? restrictions;   // e.g. Glasses required
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  // -------------------------
+  // CONSTRUCTOR
+  // -------------------------
   DriverLicense({
     this.id,
     required this.employeeId,
@@ -252,19 +337,26 @@ class DriverLicense {
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
-  /// Check if license is expired
+  // -------------------------
+  // COMPUTED PROPERTIES
+  // -------------------------
+
+  /// Checks if the license is already expired
   bool get isExpired => expiryDate.isBefore(DateTime.now());
 
-  /// Check if license is expiring soon (within 90 days)
+  /// True if the license expires within the next 90 days
   bool get isExpiringSoon {
-    final daysUntilExpiry = expiryDate.difference(DateTime.now()).inDays;
-    return daysUntilExpiry > 0 && daysUntilExpiry <= 90;
+    final daysUntil = expiryDate.difference(DateTime.now()).inDays;
+    return daysUntil > 0 && daysUntil <= 90;
   }
 
-  /// Get days until expiry
+  /// Number of days until expiration (can be negative)
   int get daysUntilExpiry => expiryDate.difference(DateTime.now()).inDays;
 
-  /// Convert to Map for database
+  // -------------------------
+  // SERIALIZATION
+  // -------------------------
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -280,7 +372,6 @@ class DriverLicense {
     };
   }
 
-  /// Create from database Map
   factory DriverLicense.fromMap(Map<String, dynamic> map) {
     return DriverLicense(
       id: map['id'] as int?,
@@ -296,7 +387,10 @@ class DriverLicense {
     );
   }
 
-  /// Create a copy with updated fields
+  // -------------------------
+  // COPY WITH
+  // -------------------------
+
   DriverLicense copyWith({
     int? id,
     int? employeeId,

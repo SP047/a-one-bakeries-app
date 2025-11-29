@@ -9,6 +9,8 @@ import 'package:a_one_bakeries_app/models/vehicle_model.dart';
 import 'package:a_one_bakeries_app/models/order_model.dart';
 import 'package:a_one_bakeries_app/models/finance_model.dart';
 import 'package:a_one_bakeries_app/models/supplier_model.dart';
+import 'package:a_one_bakeries_app/models/km_record_model.dart';
+import 'package:a_one_bakeries_app/models/service_record_model.dart';
 
 /// ============================================================================
 /// DATABASE HELPER - A-One Bakeries App
@@ -67,7 +69,7 @@ class DatabaseHelper {
     // Open the database (create if doesn't exist)
     return await openDatabase(
       path,
-      version: 3,  // <-- UPDATED: Changed from 2 to 3
+      version: 6,  // <-- UPDATED: Changed from 2 to 3
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -179,6 +181,13 @@ class DatabaseHelper {
         registrationNumber TEXT NOT NULL UNIQUE,
         assignedDriverId INTEGER,
         assignedDriverName TEXT,
+        licenseDiskExpiry TEXT,
+        lastRenewalDate TEXT,
+        diskNumber TEXT,
+        currentKm INTEGER DEFAULT 0,
+        lastServiceKm INTEGER DEFAULT 0,
+        serviceIntervalKm INTEGER DEFAULT 10000,
+        nextServiceKm INTEGER DEFAULT 10000,
         createdAt TEXT NOT NULL,
         updatedAt TEXT NOT NULL,
         FOREIGN KEY (assignedDriverId) REFERENCES employees(id) ON DELETE SET NULL
@@ -229,6 +238,10 @@ class DatabaseHelper {
         notes REAL NOT NULL,
         coins REAL NOT NULL,
         total REAL NOT NULL,
+        amountR5 REAL DEFAULT 0,
+        amountR2 REAL DEFAULT 0,
+        amountR1 REAL DEFAULT 0,
+        amount50c REAL DEFAULT 0,
         createdAt TEXT NOT NULL
       )
     ''');
@@ -241,7 +254,15 @@ class DatabaseHelper {
       CREATE TABLE expenses(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         description TEXT NOT NULL,
+        notes REAL NOT NULL,
+
+        coins REAL NOT NULL,
+
         amount REAL NOT NULL,
+        amountR5 REAL DEFAULT 0,
+        amountR2 REAL DEFAULT 0,
+        amountR1 REAL DEFAULT 0,
+        amount50c REAL DEFAULT 0,
         createdAt TEXT NOT NULL
       )
     ''');
@@ -318,6 +339,41 @@ class DatabaseHelper {
         createdAt TEXT NOT NULL,
         updatedAt TEXT NOT NULL,
         FOREIGN KEY (employeeId) REFERENCES employees(id) ON DELETE CASCADE
+      )
+    ''');
+
+
+    // ==========================================================================
+    // TABLE 15: KM RECORDS
+    // ==========================================================================
+    await db.execute('''
+      CREATE TABLE km_records(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicleId INTEGER NOT NULL,
+        kmReading INTEGER NOT NULL,
+        recordedDate TEXT NOT NULL,
+        notes TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        FOREIGN KEY (vehicleId) REFERENCES vehicles(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // ==========================================================================
+    // TABLE 16: SERVICE RECORDS
+    // ==========================================================================
+    await db.execute('''
+      CREATE TABLE service_records(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicleId INTEGER NOT NULL,
+        serviceKm INTEGER NOT NULL,
+        serviceDate TEXT NOT NULL,
+        serviceType TEXT NOT NULL,
+        cost REAL,
+        notes TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        FOREIGN KEY (vehicleId) REFERENCES vehicles(id) ON DELETE CASCADE
       )
     ''');
 
@@ -817,6 +873,52 @@ class DatabaseHelper {
     return totalIncome - totalExpenses;
   }
 
+
+  /// Get cash breakdown (income - expenses)
+  /// Returns actual cash on hand by denomination
+  Future<Map<String, double>> getCashBreakdown() async {
+    final db = await database;
+    
+    // Get total income by denomination
+    final incomeResult = await db.rawQuery('''
+      SELECT 
+        COALESCE(SUM(notes), 0) as totalNotes,
+        COALESCE(SUM(amountR5), 0) as totalR5,
+        COALESCE(SUM(amountR2), 0) as totalR2,
+        COALESCE(SUM(amountR1), 0) as totalR1,
+        COALESCE(SUM(amount50c), 0) as total50c
+      FROM income
+    ''');
+    
+    // Get total expenses by denomination
+    final expenseResult = await db.rawQuery('''
+      SELECT 
+        COALESCE(SUM(notes), 0) as totalNotes,
+        COALESCE(SUM(amountR5), 0) as totalR5,
+        COALESCE(SUM(amountR2), 0) as totalR2,
+        COALESCE(SUM(amountR1), 0) as totalR1,
+        COALESCE(SUM(amount50c), 0) as total50c
+      FROM expenses
+    ''');
+    
+    final incomeData = incomeResult.first;
+    final expenseData = expenseResult.first;
+    
+    // Calculate net amounts (income - expenses)
+    return {
+      'notes': ((incomeData['totalNotes'] as num?)?.toDouble() ?? 0.0) - 
+               ((expenseData['totalNotes'] as num?)?.toDouble() ?? 0.0),
+      'r5': ((incomeData['totalR5'] as num?)?.toDouble() ?? 0.0) - 
+            ((expenseData['totalR5'] as num?)?.toDouble() ?? 0.0),
+      'r2': ((incomeData['totalR2'] as num?)?.toDouble() ?? 0.0) - 
+            ((expenseData['totalR2'] as num?)?.toDouble() ?? 0.0),
+      'r1': ((incomeData['totalR1'] as num?)?.toDouble() ?? 0.0) - 
+            ((expenseData['totalR1'] as num?)?.toDouble() ?? 0.0),
+      '50c': ((incomeData['total50c'] as num?)?.toDouble() ?? 0.0) - 
+             ((expenseData['total50c'] as num?)?.toDouble() ?? 0.0),
+    };
+  }
+
   /// Get today's income
   Future<double> getTodayIncome() async {
     final db = await database;
@@ -1020,4 +1122,197 @@ class DatabaseHelper {
     final db = await database;
     await db.close();
   }
+
+  // ============================================================================
+  // KM TRACKING OPERATIONS
+  // ============================================================================
+
+  /// Add a new KM record and update vehicle's current KM
+  Future<int> addKmRecord(KmRecord record) async {
+    final db = await database;
+    
+    int recordId = 0;
+    await db.transaction((txn) async {
+      // Insert the KM record
+      recordId = await txn.insert('km_records', record.toMap());
+      
+      // Update vehicle's current KM
+      await txn.update(
+        'vehicles',
+        {
+          'currentKm': record.kmReading,
+          'updatedAt': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [record.vehicleId],
+      );
+    });
+    
+    return recordId;
+  }
+
+  /// Get all KM records for a vehicle
+  Future<List<KmRecord>> getVehicleKmRecords(int vehicleId) async {
+    final db = await database;
+    final maps = await db.query(
+      'km_records',
+      where: 'vehicleId = ?',
+      whereArgs: [vehicleId],
+      orderBy: 'recordedDate DESC',
+    );
+    return List.generate(maps.length, (i) => KmRecord.fromMap(maps[i]));
+  }
+
+  /// Get latest KM record for a vehicle
+  Future<KmRecord?> getLatestKmRecord(int vehicleId) async {
+    final db = await database;
+    final maps = await db.query(
+      'km_records',
+      where: 'vehicleId = ?',
+      whereArgs: [vehicleId],
+      orderBy: 'recordedDate DESC',
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return KmRecord.fromMap(maps.first);
+  }
+
+  /// Update vehicle's current KM
+  Future<int> updateVehicleKm(int vehicleId, int newKm) async {
+    final db = await database;
+    return await db.update(
+      'vehicles',
+      {
+        'currentKm': newKm,
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [vehicleId],
+    );
+  }
+
+  // ============================================================================
+  // SERVICE RECORD OPERATIONS
+  // ============================================================================
+
+  /// Add a service record and update vehicle's service KM
+  Future<int> addServiceRecord(ServiceRecord record) async {
+    final db = await database;
+    
+    int recordId = 0;
+    await db.transaction((txn) async {
+      // Insert the service record
+      recordId = await txn.insert('service_records', record.toMap());
+      
+      // Get vehicle's service interval
+      final vehicleMaps = await txn.query(
+        'vehicles',
+        where: 'id = ?',
+        whereArgs: [record.vehicleId],
+      );
+      
+      if (vehicleMaps.isNotEmpty) {
+        final serviceInterval = vehicleMaps.first['serviceIntervalKm'] as int? ?? 10000;
+        final nextServiceKm = record.serviceKm + serviceInterval;
+        
+        // Update vehicle's service KM
+        await txn.update(
+          'vehicles',
+          {
+            'lastServiceKm': record.serviceKm,
+            'nextServiceKm': nextServiceKm,
+            'updatedAt': DateTime.now().toIso8601String(),
+          },
+          where: 'id = ?',
+          whereArgs: [record.vehicleId],
+        );
+      }
+    });
+    
+    return recordId;
+  }
+
+  /// Get all service records for a vehicle
+  Future<List<ServiceRecord>> getVehicleServiceRecords(int vehicleId) async {
+    final db = await database;
+    final maps = await db.query(
+      'service_records',
+      where: 'vehicleId = ?',
+      whereArgs: [vehicleId],
+      orderBy: 'serviceDate DESC',
+    );
+    return List.generate(maps.length, (i) => ServiceRecord.fromMap(maps[i]));
+  }
+
+  /// Update vehicle's service interval
+  Future<int> updateVehicleServiceInterval(int vehicleId, int intervalKm) async {
+    final db = await database;
+    
+    // Get current lastServiceKm
+    final maps = await db.query(
+      'vehicles',
+      where: 'id = ?',
+      whereArgs: [vehicleId],
+    );
+    
+    if (maps.isEmpty) return 0;
+    
+    final lastServiceKm = maps.first['lastServiceKm'] as int? ?? 0;
+    final nextServiceKm = lastServiceKm + intervalKm;
+    
+    return await db.update(
+      'vehicles',
+      {
+        'serviceIntervalKm': intervalKm,
+        'nextServiceKm': nextServiceKm,
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [vehicleId],
+    );
+  }
+
+  /// Get vehicles due for service
+  Future<List<Vehicle>> getVehiclesDueForService() async {
+    final db = await database;
+    final maps = await db.rawQuery(
+      'SELECT * FROM vehicles WHERE currentKm >= nextServiceKm ORDER BY currentKm DESC'
+    );
+    return List.generate(maps.length, (i) => Vehicle.fromMap(maps[i]));
+  }
+
+  /// Get vehicles approaching service (within threshold KM)
+  Future<List<Vehicle>> getVehiclesApproachingService(int thresholdKm) async {
+    final db = await database;
+    final maps = await db.rawQuery(
+      'SELECT * FROM vehicles WHERE (nextServiceKm - currentKm) <= ? AND (nextServiceKm - currentKm) > 0 ORDER BY (nextServiceKm - currentKm) ASC',
+      [thresholdKm]
+    );
+    return List.generate(maps.length, (i) => Vehicle.fromMap(maps[i]));
+  }
+
+  /// Get KM records within date range
+  Future<List<KmRecord>> getKmRecordsByDateRange(DateTime startDate, DateTime endDate) async {
+    final db = await database;
+    final maps = await db.query(
+      'km_records',
+      where: 'recordedDate BETWEEN ? AND ?',
+      whereArgs: [startDate.toIso8601String(), endDate.toIso8601String()],
+      orderBy: 'recordedDate DESC',
+    );
+    return List.generate(maps.length, (i) => KmRecord.fromMap(maps[i]));
+  }
+
+  /// Get service records within date range
+  Future<List<ServiceRecord>> getServiceRecordsByDateRange(DateTime startDate, DateTime endDate) async {
+    final db = await database;
+    final maps = await db.query(
+      'service_records',
+      where: 'serviceDate BETWEEN ? AND ?',
+      whereArgs: [startDate.toIso8601String(), endDate.toIso8601String()],
+      orderBy: 'serviceDate DESC',
+    );
+    return List.generate(maps.length, (i) => ServiceRecord.fromMap(maps[i]));
+  }
+
 }

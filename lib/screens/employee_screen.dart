@@ -5,6 +5,7 @@ import 'package:a_one_bakeries_app/database/database_helper.dart';
 import 'package:a_one_bakeries_app/screens/employee_details_screen.dart';
 import 'package:a_one_bakeries_app/widgets/add_edit_employee_dialog.dart';
 import 'package:a_one_bakeries_app/widgets/employee_photo_widget.dart';
+import 'package:a_one_bakeries_app/screens/employee_credits_report_screen.dart';
 import 'package:intl/intl.dart';
 
 /// Employee Screen
@@ -211,6 +212,18 @@ class _EmployeeScreenState extends State<EmployeeScreen> {
       backgroundColor: AppTheme.creamBackground,
       appBar: AppBar(
         title: const Text('Employees'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.assessment),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const EmployeeCreditsReportScreen()),
+              );
+            },
+            tooltip: 'Employee Credits Report',
+          ),
+        ],
       ),
       body: Column(
         children: [

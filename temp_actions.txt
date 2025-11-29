@@ -1,0 +1,22 @@
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.assessment),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const StockMovementReportScreen()),
+              );
+            },
+            tooltip: 'Stock Movement Report',
+          ),
+          IconButton(
+            icon: const Icon(Icons.business),
+            onPressed: _navigateToSuppliers,
+            tooltip: 'Suppliers',
+          ),
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: _navigateToStockMovements,
+            tooltip: 'Stock Movements',
+          ),
+        ],

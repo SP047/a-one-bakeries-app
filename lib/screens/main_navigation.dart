@@ -7,11 +7,8 @@ import 'package:a_one_bakeries_app/screens/finance_screen.dart';
 
 /// Main Navigation Controller
 /// 
-/// This widget manages the bottom navigation bar and switches between
-/// different screens based on the selected tab.
-/// 
-/// It uses setState to track which screen is currently active.
-
+/// Manages bottom navigation bar and switches between screens.
+/// Uses setState to track the current active screen.
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
 
@@ -20,37 +17,43 @@ class MainNavigation extends StatefulWidget {
 }
 
 class _MainNavigationState extends State<MainNavigation> {
-  // Current selected index (0 = Dashboard, 1 = Stock, etc.)
+  // -------------------- STATE --------------------
+  /// Current selected tab index
   int _currentIndex = 0;
 
-  // List of screens corresponding to each navigation item
-  final List<Widget> _screens = [
-    const DashboardScreen(),      // Index 0 - Dashboard
-    const StockScreen(),          // Index 1 - Stock
-    const EmployeeScreen(),       // Index 2 - Employees
-    const OrdersScreen(),         // Index 3 - Orders
-    const FinanceScreen(),        // Index 4 - Finance
+  /// Screens corresponding to each bottom navigation tab
+  final List<Widget> _screens = const [
+    DashboardScreen(), // Index 0
+    StockScreen(),     // Index 1
+    EmployeeScreen(),  // Index 2
+    OrdersScreen(),    // Index 3
+    FinanceScreen(),   // Index 4
   ];
 
-  /// Handle navigation tap
+  // -------------------- NAVIGATION HANDLER --------------------
+  /// Called when a navigation item is tapped
   void _onNavItemTapped(int index) {
     setState(() {
       _currentIndex = index;
     });
   }
 
+  // -------------------- BUILD METHOD --------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Display the current screen based on selected index
+      // Display the currently selected screen
       body: _screens[_currentIndex],
-      
-      // Custom Bottom Navigation Bar
+
+      // Bottom Navigation Bar
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: _onNavItemTapped,
-        type: BottomNavigationBarType.fixed,
-        
+        type: BottomNavigationBarType.fixed, // Fixed for more than 3 items
+        selectedItemColor: Theme.of(context).primaryColor,
+        unselectedItemColor: Colors.grey,
+        showUnselectedLabels: true,
+
         // Navigation Items
         items: const [
           BottomNavigationBarItem(

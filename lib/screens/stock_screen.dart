@@ -6,6 +6,7 @@ import 'package:a_one_bakeries_app/screens/stock_movement_screen.dart';
 import 'package:a_one_bakeries_app/screens/multi_item_allocation_screen.dart';
 import 'package:a_one_bakeries_app/screens/multi_item_receiving_screen.dart';
 import 'package:a_one_bakeries_app/screens/supplier_screen.dart';
+import 'package:a_one_bakeries_app/screens/stock_movement_report_screen.dart';
 import 'package:a_one_bakeries_app/widgets/add_edit_stock_dialog.dart';
 
 /// Stock Screen
@@ -235,6 +236,16 @@ class _StockScreenState extends State<StockScreen> with SingleTickerProviderStat
       appBar: AppBar(
         title: const Text('Stock Management'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.assessment),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const StockMovementReportScreen()),
+              );
+            },
+            tooltip: 'Stock Movement Report',
+          ),
           IconButton(
             icon: const Icon(Icons.business),
             onPressed: _navigateToSuppliers,

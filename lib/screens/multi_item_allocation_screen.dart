@@ -4,25 +4,29 @@ import 'package:a_one_bakeries_app/models/stock_model.dart';
 import 'package:a_one_bakeries_app/database/database_helper.dart';
 
 /// Multi-Item Allocation Screen
-/// 
+///
 /// Allows allocating multiple stock items at once.
-/// User selects items, enters quantities, and employee name.
-
+/// User selects items, enters quantities, and specifies the employee name.
 class MultiItemAllocationScreen extends StatefulWidget {
   const MultiItemAllocationScreen({super.key});
 
   @override
-  State<MultiItemAllocationScreen> createState() => _MultiItemAllocationScreenState();
+  State<MultiItemAllocationScreen> createState() =>
+      _MultiItemAllocationScreenState();
 }
 
 class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
+  // -------------------- CONTROLLERS & KEYS --------------------
   final DatabaseHelper _dbHelper = DatabaseHelper();
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _employeeController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
 
-  List<StockItem> _allStockItems = [];
-  List<AllocationItem> _allocationItems = [];
+  // -------------------- DATA --------------------
+  List<StockItem> _allStockItems = [];          // All stock items
+  List<AllocationItem> _allocationItems = [];   // Items selected for allocation
+
+  // -------------------- STATE FLAGS --------------------
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -39,12 +43,10 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
     super.dispose();
   }
 
-  /// Load all stock items
+  // -------------------- DATA LOAD --------------------
+  /// Fetch all stock items from database
   Future<void> _loadStockItems() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     try {
       final items = await _dbHelper.getAllStockItems();
       setState(() {
@@ -52,48 +54,35 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      if (mounted) {
-        _showErrorSnackBar('Error loading stock items: $e');
-      }
+      setState(() => _isLoading = false);
+      if (mounted) _showErrorSnackBar('Error loading stock items: $e');
     }
   }
 
-  /// Add item to allocation list
+  // -------------------- ALLOCATION LIST MANAGEMENT --------------------
+  /// Add an item to allocation list
   void _addItem(StockItem stockItem) {
-    // Check if already added
     if (_allocationItems.any((item) => item.stockItem.id == stockItem.id)) {
       _showErrorSnackBar('${stockItem.name} is already in the list');
       return;
     }
-
-    setState(() {
-      _allocationItems.add(AllocationItem(stockItem: stockItem));
-    });
+    setState(() => _allocationItems.add(AllocationItem(stockItem: stockItem)));
   }
 
   /// Remove item from allocation list
   void _removeItem(int index) {
-    setState(() {
-      _allocationItems.removeAt(index);
-    });
+    setState(() => _allocationItems.removeAt(index));
   }
 
-  /// Calculate total items
+  /// Total items in allocation list
   int get _totalItems => _allocationItems.length;
 
-  /// Calculate total quantity
-  int get _totalQuantity {
-    int total = 0;
-    for (var item in _allocationItems) {
-      total += item.quantity;
-    }
-    return total;
-  }
+  /// Total quantity of all allocated items
+  int get _totalQuantity =>
+      _allocationItems.fold(0, (sum, item) => sum + item.quantity);
 
-  /// Save all allocations
+  // -------------------- SAVE ALLOCATIONS --------------------
+  /// Validate and save allocation to database
   Future<void> _saveAllocations() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -102,12 +91,11 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
       return;
     }
 
-    // Validate all items have quantity
-    bool allValid = true;
+    // Validate quantities
     for (var item in _allocationItems) {
       if (item.quantity <= 0) {
-        allValid = false;
-        break;
+        _showErrorSnackBar('Please enter quantity for all items');
+        return;
       }
       if (item.quantity > item.stockItem.quantityOnHand.toInt()) {
         _showErrorSnackBar(
@@ -116,75 +104,53 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
       }
     }
 
-    if (!allValid) {
-      _showErrorSnackBar('Please enter quantity for all items');
-      return;
-    }
-
-    setState(() {
-      _isSaving = true;
-    });
+    setState(() => _isSaving = true);
 
     try {
-      // Create movements for each item
       for (var item in _allocationItems) {
         final movement = StockMovement(
           stockItemId: item.stockItem.id!,
           stockItemName: item.stockItem.name,
           movementType: 'ALLOCATED',
-          quantity: item.quantity, // FIX: Convert int to double
+          quantity: item.quantity,
           employeeName: _employeeController.text.trim(),
           notes: _notesController.text.trim().isEmpty
               ? null
               : _notesController.text.trim(),
         );
-
         await _dbHelper.insertStockMovement(movement);
       }
 
-      if (mounted) {
-        Navigator.pop(context, true);
-      }
+      if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      setState(() {
-        _isSaving = false;
-      });
-      if (mounted) {
-        _showErrorSnackBar('Error saving allocations: $e');
-      }
+      setState(() => _isSaving = false);
+      if (mounted) _showErrorSnackBar('Error saving allocations: $e');
     }
   }
 
+  // -------------------- BUILD --------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.creamBackground,
-      appBar: AppBar(
-        title: const Text('Allocate Stock'),
-      ),
+      appBar: AppBar(title: const Text('Allocate Stock')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Form(
               key: _formKey,
               child: Column(
                 children: [
-                  // Header Section
                   _buildHeaderSection(),
-
-                  // Allocated Items List
                   Expanded(
                     child: _allocationItems.isEmpty
                         ? _buildEmptyState()
                         : ListView.builder(
                             padding: const EdgeInsets.all(16),
                             itemCount: _allocationItems.length,
-                            itemBuilder: (context, index) {
-                              return _buildAllocationItemCard(index);
-                            },
+                            itemBuilder: (context, index) =>
+                                _buildAllocationItemCard(index),
                           ),
                   ),
-
-                  // Bottom Bar with Save Button
                   _buildBottomBar(),
                 ],
               ),
@@ -196,7 +162,8 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
     );
   }
 
-  /// Build header section
+  // -------------------- UI COMPONENTS --------------------
+  /// Header with employee name, notes, and summary
   Widget _buildHeaderSection() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -213,12 +180,10 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
               prefixIcon: Icon(Icons.person),
             ),
             textCapitalization: TextCapitalization.words,
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Please enter employee name';
-              }
-              return null;
-            },
+            validator: (value) =>
+                (value == null || value.trim().isEmpty)
+                    ? 'Please enter employee name'
+                    : null,
           ),
           const SizedBox(height: 16),
 
@@ -247,16 +212,19 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
               children: [
                 Text(
                   'Items: $_totalItems',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 Text(
                   'Total Qty: $_totalQuantity',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.primaryBrown,
-                      ),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.primaryBrown),
                 ),
               ],
             ),
@@ -266,7 +234,7 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
     );
   }
 
-  /// Build allocation item card
+  /// Card for each allocation item with quantity controls
   Widget _buildAllocationItemCard(int index) {
     final item = _allocationItems[index];
 
@@ -284,18 +252,19 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        item.stockItem.name,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
+                      Text(item.stockItem.name,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 4),
                       Text(
                         'Available: ${item.stockItem.quantityOnHand.toInt()} ${item.stockItem.unit}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.darkBrown.withOpacity(0.6),
-                            ),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(
+                                color: AppTheme.darkBrown.withOpacity(0.6)),
                       ),
                     ],
                   ),
@@ -308,22 +277,17 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Quantity Input
+            // Quantity Controls
             Row(
               children: [
-                // Decrease Button
                 IconButton(
                   icon: const Icon(Icons.remove_circle_outline),
                   onPressed: () {
                     if (item.quantity > 0) {
-                      setState(() {
-                        item.quantity--;
-                      });
+                      setState(() => item.quantity--);
                     }
                   },
                 ),
-
-                // Quantity Display
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12),
@@ -334,22 +298,20 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
                     child: Text(
                       '${item.quantity} ${item.stockItem.unit}',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryBrown,
-                          ),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.primaryBrown),
                     ),
                   ),
                 ),
-
-                // Increase Button
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () {
                     if (item.quantity < item.stockItem.quantityOnHand.toInt()) {
-                      setState(() {
-                        item.quantity++;
-                      });
+                      setState(() => item.quantity++);
                     } else {
                       _showErrorSnackBar('Maximum quantity reached');
                     }
@@ -363,37 +325,31 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
     );
   }
 
-  /// Build empty state
+  /// Empty state widget
   Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.inbox,
-            size: 80,
-            color: AppTheme.darkBrown.withOpacity(0.3),
-          ),
+          Icon(Icons.inbox, size: 80, color: AppTheme.darkBrown.withOpacity(0.3)),
           const SizedBox(height: 16),
-          Text(
-            'No items added',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: AppTheme.darkBrown.withOpacity(0.5),
-                ),
-          ),
+          Text('No items added',
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineSmall
+                  ?.copyWith(color: AppTheme.darkBrown.withOpacity(0.5))),
           const SizedBox(height: 8),
-          Text(
-            'Tap + to add stock items',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.darkBrown.withOpacity(0.5),
-                ),
-          ),
+          Text('Tap + to add stock items',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: AppTheme.darkBrown.withOpacity(0.5))),
         ],
       ),
     );
   }
 
-  /// Build bottom bar
+  /// Bottom bar with Save button
   Widget _buildBottomBar() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -412,17 +368,13 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
           width: double.infinity,
           child: ElevatedButton(
             onPressed: _isSaving ? null : _saveAllocations,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
+            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
             child: _isSaving
                 ? const SizedBox(
                     height: 20,
                     width: 20,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
+                        strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
                   )
                 : Text(
                     'Allocate ${_allocationItems.length} Items',
@@ -434,7 +386,7 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
     );
   }
 
-  /// Show add item dialog
+  /// Dialog to add stock item
   Future<void> _showAddItemDialog() async {
     StockItem? selectedItem;
 
@@ -445,41 +397,27 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
         content: SizedBox(
           width: double.maxFinite,
           child: StatefulBuilder(
-            builder: (context, setState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<StockItem>(
-                    value: selectedItem,
-                    decoration: const InputDecoration(
-                      labelText: 'Select Item',
-                      prefixIcon: Icon(Icons.inventory_2),
-                    ),
-                    items: _allStockItems
-                        .where((item) => !_allocationItems
-                            .any((ai) => ai.stockItem.id == item.id))
-                        .map((item) => DropdownMenuItem(
-                              value: item,
-                              child: Text(
-                                  '${item.name} (${item.quantityOnHand.toInt()} ${item.unit})'),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        selectedItem = value;
-                      });
-                    },
-                  ),
-                ],
-              );
-            },
+            builder: (context, setState) => DropdownButtonFormField<StockItem>(
+              value: selectedItem,
+              decoration: const InputDecoration(
+                labelText: 'Select Item',
+                prefixIcon: Icon(Icons.inventory_2),
+              ),
+              items: _allStockItems
+                  .where((item) =>
+                      !_allocationItems.any((ai) => ai.stockItem.id == item.id))
+                  .map((item) => DropdownMenuItem(
+                        value: item,
+                        child: Text(
+                            '${item.name} (${item.quantityOnHand.toInt()} ${item.unit})'),
+                      ))
+                  .toList(),
+              onChanged: (value) => setState(() => selectedItem = value),
+            ),
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
               if (selectedItem != null) {
@@ -497,22 +435,15 @@ class _MultiItemAllocationScreenState extends State<MultiItemAllocationScreen> {
   /// Show error snackbar
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppTheme.errorRed,
-        duration: const Duration(seconds: 3),
-      ),
+      SnackBar(content: Text(message), backgroundColor: AppTheme.errorRed, duration: const Duration(seconds: 3)),
     );
   }
 }
 
-/// Allocation Item Helper Class
+/// Helper class representing an allocation item
 class AllocationItem {
   final StockItem stockItem;
   int quantity;
 
-  AllocationItem({
-    required this.stockItem,
-    this.quantity = 0,
-  });
+  AllocationItem({required this.stockItem, this.quantity = 0});
 }

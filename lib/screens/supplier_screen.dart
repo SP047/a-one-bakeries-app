@@ -3,6 +3,7 @@ import 'package:a_one_bakeries_app/theme/app_theme.dart';
 import 'package:a_one_bakeries_app/models/supplier_model.dart';
 import 'package:a_one_bakeries_app/database/database_helper.dart';
 import 'package:a_one_bakeries_app/screens/supplier_details_screen.dart';
+import 'package:a_one_bakeries_app/screens/supplier_report_screen.dart';
 import 'package:a_one_bakeries_app/widgets/add_edit_supplier_dialog.dart';
 
 /// Supplier Screen
@@ -145,6 +146,18 @@ class _SupplierScreenState extends State<SupplierScreen> {
       backgroundColor: AppTheme.creamBackground,
       appBar: AppBar(
         title: const Text('Suppliers'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.assessment),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SupplierReportScreen()),
+              );
+            },
+            tooltip: 'Supplier Report',
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

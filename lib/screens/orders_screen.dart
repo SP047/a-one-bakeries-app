@@ -3,6 +3,7 @@ import 'package:a_one_bakeries_app/theme/app_theme.dart';
 import 'package:a_one_bakeries_app/models/order_model.dart';
 import 'package:a_one_bakeries_app/database/database_helper.dart';
 import 'package:a_one_bakeries_app/screens/create_order_screen.dart';
+import 'package:a_one_bakeries_app/screens/driver_vehicle_orders_report_screen.dart';
 import 'package:a_one_bakeries_app/screens/order_details_screen.dart';
 import 'package:intl/intl.dart';
 
@@ -136,6 +137,18 @@ class _OrdersScreenState extends State<OrdersScreen> {
       backgroundColor: AppTheme.creamBackground,
       appBar: AppBar(
         title: const Text('Orders'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.assessment),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const DriverVehicleOrdersReportScreen()),
+              );
+            },
+            tooltip: 'Driver/Vehicle Orders Report',
+          ),
+        ],
       ),
       body: Column(
         children: [
