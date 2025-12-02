@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:a_one_bakeries_app/models/stock_model.dart';
 import 'package:a_one_bakeries_app/models/employee_model.dart';
 import 'package:a_one_bakeries_app/models/vehicle_model.dart';
@@ -63,8 +64,10 @@ class DatabaseHelper {
       databaseFactory = databaseFactoryFfi;
     }
     
-    // Get the database file path
-    String path = join(await getDatabasesPath(), 'a_one_bakeries.db');
+    // CRITICAL FIX: Use getApplicationDocumentsDirectory() for writable location
+    // This ensures database is writable in both debug and release builds
+    final directory = await getApplicationDocumentsDirectory();
+    String path = join(directory.path, 'a_one_bakeries.db');
     
     // Open the database (create if doesn't exist)
     return await openDatabase(

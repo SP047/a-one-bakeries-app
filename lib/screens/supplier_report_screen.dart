@@ -160,6 +160,10 @@ class _SupplierReportScreenState extends State<SupplierReportScreen> {
         summaryLabels: ['Total Suppliers', 'Total Invoices', 'Total Payments', 'Outstanding Balance'],
         summaryValues: [_suppliers.length.toString(), _currencyFormat.format(_totalInvoices), _currencyFormat.format(_totalPayments), _currencyFormat.format(_totalInvoices - _totalPayments)],
       );
+      
+      if (mounted) {
+        _showSuccessSnackBar('PDF generated successfully!');
+      }
     } catch (e) {
       if (mounted) {
         _showErrorSnackBar('Error exporting to PDF: $e');

@@ -232,7 +232,7 @@ class _DriverVehicleOrdersReportScreenState extends State<DriverVehicleOrdersRep
       ]).toList();
 
       await _exportService.exportToPdf(
-        reportTitle: 'Driver/Vehicle Orders Report',
+        reportTitle: 'Driver Vehicle Orders Report',
         headers: headers,
         rows: rows,
         summaryTitle: 'Summary',
@@ -245,6 +245,10 @@ class _DriverVehicleOrdersReportScreenState extends State<DriverVehicleOrdersRep
           '${_dateFormat.format(_startDate)} - ${_dateFormat.format(_endDate)}',
         ],
       );
+      
+      if (mounted) {
+        _showSuccessSnackBar('PDF generated successfully!');
+      }
     } catch (e) {
       if (mounted) {
         _showErrorSnackBar('Error exporting to PDF: $e');

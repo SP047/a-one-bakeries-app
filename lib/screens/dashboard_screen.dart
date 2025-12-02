@@ -14,6 +14,7 @@ import 'package:a_one_bakeries_app/screens/orders_screen.dart';
 import 'package:a_one_bakeries_app/screens/finance_screen.dart';
 import 'package:a_one_bakeries_app/screens/create_order_screen.dart';
 import 'package:a_one_bakeries_app/screens/notifications_screen.dart';
+import 'package:a_one_bakeries_app/screens/settings_screen.dart';
 import 'package:a_one_bakeries_app/services/notification_service.dart';
 import 'package:a_one_bakeries_app/widgets/license_expiry_alert.dart';
 import 'package:intl/intl.dart';
@@ -131,6 +132,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  /// Navigate to Settings Screen
+  void _navigateToSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => SettingsScreen()),
+    );
+  }
+
   /// Show New Order Screen
   void _showNewOrderScreen() {
     Navigator.push(
@@ -246,6 +255,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
             ],
+          ),
+          // Settings Icon
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: _navigateToSettings,
+            tooltip: 'Settings',
           ),
         ],
       ),
